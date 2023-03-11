@@ -1,10 +1,9 @@
 package com.pilipili.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.*;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import io.swagger.annotations.ApiModelProperty;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import java.io.Serializable;
@@ -27,18 +26,21 @@ public class BaseEntity implements Serializable {
             value = "id",
             type = IdType.ASSIGN_ID
     )
+    @ApiModelProperty("id 主键")
     private Long id;
 
     /**
      * 创建者id
      */
-    @TableField(value = "create_id")
+    @ApiModelProperty("创建者id")
+    @TableField(value = "create_id",fill = FieldFill.INSERT)
     private Long createId;
 
     /**
      * 创建者名
      */
-    @TableField(value = "create_name")
+    @ApiModelProperty("创建者名")
+    @TableField(value = "create_name",fill = FieldFill.INSERT)
     private String createName;
 
     /**
@@ -46,19 +48,22 @@ public class BaseEntity implements Serializable {
      */
     @JsonFormat( pattern = "yyyy-MM-dd HH:mm:ss")
     @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    @TableField(value = "create_time")
+    @ApiModelProperty("创建时间")
+    @TableField(value = "create_time",fill = FieldFill.INSERT)
     private Date createTime;
 
     /**
      * 更新者id
      */
-    @TableField(value = "update_id")
+    @ApiModelProperty("更新者id")
+    @TableField(value = "update_id",fill = FieldFill.INSERT_UPDATE)
     private Long updateId;
 
     /**
      * 更新者名
      */
-    @TableField(value = "update_name")
+    @ApiModelProperty("更新者名")
+    @TableField(value = "update_name",fill = FieldFill.INSERT_UPDATE)
     private String updateName;
 
     /**
@@ -66,13 +71,19 @@ public class BaseEntity implements Serializable {
      */
     @JsonFormat( pattern = "yyyy-MM-dd HH:mm:ss")
     @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    @TableField(value = "update_time")
+    @ApiModelProperty("更新时间")
+    @TableField(value = "update_time",fill = FieldFill.INSERT_UPDATE)
     private Date updateTime;
+
+    @TableField(value = "logic_del",fill = FieldFill.INSERT)
+    @ApiModelProperty("是否删除标识 0：未删除  1：删除")
+    @TableLogic(value = "0",delval = "1")
+    private Integer logicDel;
 
     public BaseEntity() {
     }
 
-    public BaseEntity(Long id, Long createId, String createName, Date createTime, Long updateId, String updateName, Date updateTime) {
+    public BaseEntity(Long id, Long createId, String createName, Date createTime, Long updateId, String updateName, Date updateTime, Integer logicDel) {
         this.id = id;
         this.createId = createId;
         this.createName = createName;
@@ -80,6 +91,7 @@ public class BaseEntity implements Serializable {
         this.updateId = updateId;
         this.updateName = updateName;
         this.updateTime = updateTime;
+        this.logicDel = logicDel;
     }
 
     public Long getId() {
@@ -138,6 +150,34 @@ public class BaseEntity implements Serializable {
         this.updateTime = updateTime;
     }
 
+    public Integer getLogicDel() {
+        return logicDel;
+    }
+
+    public void setLogicDel(Integer logicDel) {
+        this.logicDel = logicDel;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) { return true; }
+        if (!(o instanceof BaseEntity)) { return false; }
+        BaseEntity that = (BaseEntity) o;
+        return getId().equals(that.getId()) &&
+                Objects.equals(getCreateId(), that.getCreateId()) &&
+                Objects.equals(getCreateName(), that.getCreateName()) &&
+                Objects.equals(getCreateTime(), that.getCreateTime()) &&
+                Objects.equals(getUpdateId(), that.getUpdateId()) &&
+                Objects.equals(getUpdateName(), that.getUpdateName()) &&
+                Objects.equals(getUpdateTime(), that.getUpdateTime()) &&
+                getLogicDel().equals(that.getLogicDel());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getId(), getCreateId(), getCreateName(), getCreateTime(), getUpdateId(), getUpdateName(), getUpdateTime(), getLogicDel());
+    }
+
     @Override
     public String toString() {
         return "BaseEntity{" +
@@ -148,25 +188,7 @@ public class BaseEntity implements Serializable {
                 ", updateId=" + updateId +
                 ", updateName='" + updateName + '\'' +
                 ", updateTime=" + updateTime +
+                ", logicDel=" + logicDel +
                 '}';
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {return true;}
-        if (!(o instanceof BaseEntity)) {return false;}
-        BaseEntity that = (BaseEntity) o;
-        return getId().equals(that.getId()) &&
-                Objects.equals(getCreateId(), that.getCreateId()) &&
-                Objects.equals(getCreateName(), that.getCreateName()) &&
-                Objects.equals(getCreateTime(), that.getCreateTime()) &&
-                Objects.equals(getUpdateId(), that.getUpdateId()) &&
-                Objects.equals(getUpdateName(), that.getUpdateName()) &&
-                Objects.equals(getUpdateTime(), that.getUpdateTime());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(getId(), getCreateId(), getCreateName(), getCreateTime(), getUpdateId(), getUpdateName(), getUpdateTime());
     }
 }

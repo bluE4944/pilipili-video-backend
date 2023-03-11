@@ -5,6 +5,7 @@ import com.pilipili.entity.User;
 import com.pilipili.mapper.UserMapper;
 import org.springframework.stereotype.Repository;
 
+
 /**
  * 用户 Repository
  * @author Liam
@@ -13,4 +14,6 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public class UserRepository extends ServiceImpl<UserMapper, User> {
+
+
 }
