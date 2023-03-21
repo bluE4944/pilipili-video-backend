@@ -8,7 +8,7 @@ spring:
     password: 123456
 
 server:
-  port: 8899
+  port: 8316
 
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
