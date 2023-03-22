@@ -1,5 +1,6 @@
 package com.pilipili.repository;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.pilipili.entity.User;
 import com.pilipili.mapper.UserMapper;
@@ -14,6 +15,17 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public class UserRepository extends ServiceImpl<UserMapper, User> {
+
+    /**
+     * 根据用户名查找
+     * @param username 用户名
+     * @return 用户
+     */
+    public User findByUsername(String username){
+        QueryWrapper<User> userQueryWrapper = new QueryWrapper<>();
+        userQueryWrapper.lambda().eq(User::getUsername,username);
+        return this.baseMapper.selectOne(userQueryWrapper);
+    }
 
 
 }

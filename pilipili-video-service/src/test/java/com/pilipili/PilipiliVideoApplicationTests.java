@@ -1,10 +1,14 @@
 package com.pilipili;
 
+import com.pilipili.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.junit4.SpringRunner;
 
 /**
@@ -18,6 +22,15 @@ import org.springframework.test.context.junit4.SpringRunner;
 @RunWith(SpringRunner.class)
 @SpringBootTest(classes = PilipiliVideoApplication.class)
 @Slf4j
-@RequiredArgsConstructor(onConstructor = @__(@Autowired))
 public class PilipiliVideoApplicationTests {
+    @Autowired
+    private UserService userService;
+
+    @Value("${pilipili.user.admin.password}")
+    private String password;
+
+    @Test
+    public void testAddAdmin(){
+        userService.saveAdmin(new BCryptPasswordEncoder(),password);
+    }
 }
