@@ -1,10 +1,14 @@
 package com.pilipili.config;
 
 
+import com.pilipili.service.UserService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -14,7 +18,10 @@ import org.springframework.security.web.SecurityFilterChain;
  * @date 2023/3/22 21:30
  */
 @EnableWebSecurity
+@RequiredArgsConstructor(onConstructor = @__(@Autowired))
 public class SecurityConfig {
+
+    private final UserService userService;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
@@ -44,6 +51,11 @@ public class SecurityConfig {
     @Bean
     public WebSecurityCustomizer webSecurityCustomizer(){
         return web -> web.ignoring().antMatchers("/user/login");
+    }
+
+    @Bean
+    public UserDetailsService userDetailsService() {
+        return userService;
     }
 
     @Bean

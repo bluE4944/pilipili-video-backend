@@ -24,6 +24,9 @@ public class UserRepository extends ServiceImpl<UserMapper, User> {
     public User findByUsername(String username){
         QueryWrapper<User> userQueryWrapper = new QueryWrapper<>();
         userQueryWrapper.lambda().eq(User::getUsername,username);
+        userQueryWrapper.lambda().or().eq(User::getEmail,username);
+        userQueryWrapper.lambda().or().eq(User::getPhone,username);
+        userQueryWrapper.lambda().last("limit 1");
         return this.baseMapper.selectOne(userQueryWrapper);
     }
 

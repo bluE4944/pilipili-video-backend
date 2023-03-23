@@ -32,6 +32,7 @@ public class UserService implements UserDetailsService {
             return user;
         }
         throw  new UsernameNotFoundException("User '" + username + "' not found");
+        throw new UsernameNotFoundException("User '" + username + "' not found");
     }
 
     public void saveAdmin(PasswordEncoder passwordEncoder,String password){
