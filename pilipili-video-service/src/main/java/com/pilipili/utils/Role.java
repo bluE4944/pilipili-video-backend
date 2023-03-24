@@ -10,15 +10,15 @@ public enum Role {
     /**
      * 用户
      */
-    ROLE_USER("ROLE_USER"),
+    ROLE_USER("user"),
     /**
      * 管理员
      */
-    ROLE_MANAGE("ROLE_MANAGE"),
+    ROLE_MANAGE("manage"),
     /**
      * admin
      */
-    ROLE_ADMIN("ROLE_ADMIN");
+    ROLE_ADMIN("admin");
 
 
     private final String code;

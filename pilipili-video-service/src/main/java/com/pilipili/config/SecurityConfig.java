@@ -2,9 +2,12 @@ package com.pilipili.config;
 
 
 import com.pilipili.service.UserService;
+import com.pilipili.utils.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
@@ -26,21 +29,13 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
         httpSecurity.authorizeRequests()
+                .antMatchers("/user/user/**").hasRole(Role.ROLE_USER.getCode())
+                .antMatchers("/user/admin/**").hasRole(Role.ROLE_ADMIN.getCode())
+                .antMatchers("/manage/**").hasRole(Role.ROLE_MANAGE.getCode())
                 .anyRequest().authenticated()
                 .and()
                 .formLogin()
-                //配置登录页面，如果访问了一个需要认证之后才能访问的页面，那么就会自动跳转到这个页面上来
-                .loginPage("/login")
-                //配置处理登录请求的接口，本质上其实就是配置过滤器的拦截规则，将来的登录请求就会在过滤器中被处理
-                .loginProcessingUrl("/doLogin")
-                //配置登录表单中用户名的 key
-                .usernameParameter("username")
-                //配置登录表单中用户密码
-                .passwordParameter("password")
-                //配置登录成功后的跳转地址
-                .defaultSuccessUrl("/")
-                //失败地址
-                .failureUrl("/login")
+                .loginProcessingUrl("/login")
                 .and()
                 .csrf()
                 //关闭 csrf 防御机制，这个 disable 方法本质上就是从 Spring Security 的过滤器链上移除掉 csrf 过滤器
@@ -50,7 +45,7 @@ public class SecurityConfig {
 
     @Bean
     public WebSecurityCustomizer webSecurityCustomizer(){
-        return web -> web.ignoring().antMatchers("/user/login");
+        return web -> web.ignoring().antMatchers("/doLogin");
     }
 
     @Bean
@@ -61,6 +56,17 @@ public class SecurityConfig {
     @Bean
     public BCryptPasswordEncoder passwordEncoder(){
         return new BCryptPasswordEncoder();
+    }
+
+    /**
+     * 角色继承 user 能访问的资源 admin都能访问
+     * @return
+     */
+    @Bean
+    public RoleHierarchy roleHierarchy() {
+        RoleHierarchyImpl hierarchy = new RoleHierarchyImpl();
+        hierarchy.setHierarchy(Role.ROLE_ADMIN.getCode() + " > " + Role.ROLE_MANAGE.getCode() + " > " + Role.ROLE_USER.getCode());
+        return hierarchy;
     }
 
 }

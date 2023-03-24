@@ -55,7 +55,7 @@ public class User extends BaseEntity implements UserDetails {
     /**
      * 性别
      */
-    private String sex;
+    private String gender;
 
     /**
      * 角色
