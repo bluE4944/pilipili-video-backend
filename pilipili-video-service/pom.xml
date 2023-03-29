@@ -117,6 +117,13 @@
             <artifactId>bcprov-jdk14</artifactId>
             <version>1.38</version>
         </dependency>
+        <!-- io流下载文件 -->
+        <!-- https://mvnrepository.com/artifact/commons-io/commons-io -->
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.11.0</version>
+        </dependency>
 
     </dependencies>
 
