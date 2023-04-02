@@ -31,6 +31,6 @@ public class PilipiliVideoApplicationTests {
 
     @Test
     public void testAddAdmin(){
-        userService.saveAdmin(new BCryptPasswordEncoder(),password);
+        userService.saveAdmin(password);
     }
 }

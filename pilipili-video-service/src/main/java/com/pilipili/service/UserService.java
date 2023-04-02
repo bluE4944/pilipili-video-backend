@@ -25,6 +25,8 @@ public class UserService implements UserDetailsService {
 
     private final UserRepository userRepository;
 
+    private final PasswordEncoder passwordEncoder;
+
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         User user = userRepository.findByUsername(username);
@@ -34,7 +36,7 @@ public class UserService implements UserDetailsService {
         throw new UsernameNotFoundException("User '" + username + "' not found");
     }
 
-    public void saveAdmin(PasswordEncoder passwordEncoder,String password){
+    public void saveAdmin(String password){
         User admin = new User();
         admin.setUserName("admin");
         admin.setEmail("-1");
@@ -50,5 +52,9 @@ public class UserService implements UserDetailsService {
         admin.setUpdateTime(new Date());
         admin.setLogicDel(0);
         userRepository.save(admin);
+    }
+
+    public void saveUser(String password){
+          bv  
     }
 }
