@@ -1,13 +1,12 @@
 package com.pilipili.controller;
 
-import com.pilipili.entity.User;
-import com.pilipili.entity.out.Result;
+import com.pilipili.domain.entity.User;
+import com.pilipili.domain.entity.in.UserCondition;
+import com.pilipili.domain.entity.out.Result;
 import com.pilipili.service.UserService;
-import com.pilipili.utils.Status;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,9 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.net.URLDecoder;
 
-import static com.pilipili.utils.Status.SYSTEM_ERROR;
-
-import javax.servlet.http.HttpServletRequest;
+import static com.pilipili.utils.ResultStatus.SYSTEM_ERROR;
 
 
 /**
@@ -33,7 +30,7 @@ import javax.servlet.http.HttpServletRequest;
 @Api(value = "用户控制器",tags = "用户控制器")
 @RequestMapping("/user")
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
-public class LoginController {
+public class UserController {
 
     private final UserService userService;
 
@@ -42,12 +39,17 @@ public class LoginController {
         return Result.build("hello 江南一点雨!");
     }
 
-    @GetMapping("/user/hello")
-    public Result<String> user() {
-        return Result.build("hello user!");
+    @PostMapping("/admin/modify-user")
+    public Result<String> modifyUser(@RequestBody UserCondition userCondition) {
+        return Result.build("modifyUser!");
     }
 
-    @PostMapping("/admin/saveUser")
+    @PostMapping("/admin/del-user")
+    public Result<String> delUser(@RequestBody UserCondition userCondition) {
+        return Result.build("delUser!");
+    }
+
+    @PostMapping("/admin/save-user")
     public Result<String> processRegistration(@RequestBody User user){
         //先用非对称算法RSA解密一下
         try {

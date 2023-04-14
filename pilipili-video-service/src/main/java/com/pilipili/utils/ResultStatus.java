@@ -5,7 +5,7 @@ package com.pilipili.utils;
  * @version 1.0
  * @date 2023/3/22 22:23
  */
-public enum Status {
+public enum ResultStatus {
     /**
      * 成功
      */
@@ -33,7 +33,7 @@ public enum Status {
      */
     private final String message;
 
-    Status(Integer code, String message) {
+    ResultStatus(Integer code, String message) {
         this.code = code;
         this.message = message;
     }

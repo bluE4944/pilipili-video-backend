@@ -1,7 +1,7 @@
 package com.pilipili.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.pilipili.entity.User;
+import com.pilipili.domain.entity.User;
 import org.apache.ibatis.annotations.Mapper;
 
 /**

@@ -1,6 +1,6 @@
-package com.pilipili.entity.out;
+package com.pilipili.domain.entity.out;
 
-import com.pilipili.utils.Status;
+import com.pilipili.utils.ResultStatus;
 
 /**
  * @author Liam
@@ -54,8 +54,8 @@ public class Result<T> {
      * 状态信息来自--->>开发人员
      * 数据来自--->>开发人员
      */
-    public static <T> Result<T> build(Status status, String message, T body){
-        return new Result<T>(status.getCode(),message,body);
+    public static <T> Result<T> build(ResultStatus resultStatus, String message, T body){
+        return new Result<T>(resultStatus.getCode(),message,body);
 
     }
 
@@ -64,8 +64,8 @@ public class Result<T> {
      * 状态码来自--->>枚举
      * 状态信息来自--->>开发人员
      */
-    public static <T> Result<T> build(Status status,String message){
-        return new Result<T>(status.getCode(),message);
+    public static <T> Result<T> build(ResultStatus resultStatus, String message){
+        return new Result<T>(resultStatus.getCode(),message);
     }
     /**
      * 返回《状态码》《状态信息》《数据》
@@ -73,8 +73,8 @@ public class Result<T> {
      * 状态信息来自--->>枚举
      * 数据来自--->>开发人员
      */
-    public static <T> Result<T> build(Status status,T body){
-        return new Result<T>(status.getCode(),status.getMessage(),body);
+    public static <T> Result<T> build(ResultStatus resultStatus, T body){
+        return new Result<T>(resultStatus.getCode(), resultStatus.getMessage(),body);
     }
     /**
      * 返回《状态码》《状态信息》《数据》
@@ -82,8 +82,8 @@ public class Result<T> {
      * 状态信息来自--->>枚举
      * 数据来自--->>开发人员
      */
-    public static <T> Result<T> build(Status status){
-        return new Result<T>(status.getCode(),status.getMessage());
+    public static <T> Result<T> build(ResultStatus resultStatus){
+        return new Result<T>(resultStatus.getCode(), resultStatus.getMessage());
     }
 
     /**
@@ -92,7 +92,7 @@ public class Result<T> {
      * @return Result
      */
     public static <T> Result<T> build(T body){
-        return new Result<T>(Status.OK.getCode(),Status.OK.getMessage(),body);
+        return new Result<T>(com.pilipili.utils.ResultStatus.OK.getCode(), com.pilipili.utils.ResultStatus.OK.getMessage(),body);
     }
 
     /**
@@ -100,10 +100,10 @@ public class Result<T> {
      * @return Result
      */
     public static <T> Result<T> build(){
-        return new Result<T>(Status.OK.getCode(),Status.OK.getMessage());
+        return new Result<T>(com.pilipili.utils.ResultStatus.OK.getCode(), com.pilipili.utils.ResultStatus.OK.getMessage());
     }
 
     public boolean isSuccess(){
-        return this.status.compareTo(Status.OK.getCode()) == 0;
+        return this.status.compareTo(com.pilipili.utils.ResultStatus.OK.getCode()) == 0;
     }
 }

@@ -1,4 +1,4 @@
-package com.pilipili.entity;
+package com.pilipili.domain.entity;
 
 
 import com.baomidou.mybatisplus.annotation.TableName;

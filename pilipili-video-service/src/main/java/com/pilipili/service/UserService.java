@@ -1,6 +1,6 @@
 package com.pilipili.service;
 
-import com.pilipili.entity.User;
+import com.pilipili.domain.entity.User;
 import com.pilipili.repository.UserRepository;
 import com.pilipili.utils.Role;
 import lombok.RequiredArgsConstructor;

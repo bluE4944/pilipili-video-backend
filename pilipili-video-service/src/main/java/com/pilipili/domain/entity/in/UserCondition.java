@@ -1,4 +1,4 @@
-package com.pilipili.entity.in;
+package com.pilipili.domain.entity.in;
 
 import lombok.Data;
 

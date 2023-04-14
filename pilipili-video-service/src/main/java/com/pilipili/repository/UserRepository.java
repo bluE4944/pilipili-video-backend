@@ -2,7 +2,7 @@ package com.pilipili.repository;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.pilipili.entity.User;
+import com.pilipili.domain.entity.User;
 import com.pilipili.mapper.UserMapper;
 import org.springframework.stereotype.Repository;
 
