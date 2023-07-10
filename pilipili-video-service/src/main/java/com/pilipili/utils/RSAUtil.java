@@ -153,7 +153,7 @@ public class RSAUtil {
 
     /**
      * 随机生成密钥对
-     * @throws Exception
+     * @throws Exception exception
      */
     public static void genKeyPair() throws Exception {
         // KeyPairGenerator类用于生成公钥和私钥对，基于RSA算法生成对象

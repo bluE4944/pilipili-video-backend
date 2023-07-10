@@ -1,7 +1,6 @@
 package com.pilipili.config;
 
 import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.system.UserInfo;
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
 import com.pilipili.utils.LogicStatus;
 import org.apache.ibatis.reflection.MetaObject;
