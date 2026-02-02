@@ -70,7 +70,12 @@ public class User extends BaseEntity implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return Lists.newArrayList(new SimpleGrantedAuthority(role));
+        // 确保角色有ROLE_前缀（Spring Security要求）
+        String authority = role;
+        if (role != null && !role.startsWith("ROLE_")) {
+            authority = "ROLE_" + role;
+        }
+        return Lists.newArrayList(new SimpleGrantedAuthority(authority));
     }
 
     @Override

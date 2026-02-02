@@ -21,7 +21,39 @@ public enum Status {
     /**
      * SQL语句异常
      */
-    SQL_ERROR(109,"SQL语句异常");
+    SQL_ERROR(109,"SQL语句异常"),
+    /**
+     * 参数错误
+     */
+    PARAM_ERROR(103,"参数错误"),
+    /**
+     * 未授权
+     */
+    UNAUTHORIZED(401,"未授权"),
+    /**
+     * 禁止访问
+     */
+    FORBIDDEN(403,"禁止访问"),
+    /**
+     * 资源不存在
+     */
+    NOT_FOUND(404,"资源不存在"),
+    /**
+     * 业务异常
+     */
+    BUSINESS_ERROR(400,"业务异常"),
+    /**
+     * 文件上传失败
+     */
+    UPLOAD_ERROR(201,"文件上传失败"),
+    /**
+     * 文件格式不支持
+     */
+    FILE_FORMAT_ERROR(202,"文件格式不支持"),
+    /**
+     * 文件大小超限
+     */
+    FILE_SIZE_ERROR(203,"文件大小超限");
 
 
     /**

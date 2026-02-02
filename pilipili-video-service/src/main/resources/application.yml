@@ -2,10 +2,85 @@ spring:
   application:
     name: pilipili-video-backend
   datasource:
-    url: jdbc:mysql://192.168.31.52:3306/pilipili_video?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    type: com.alibaba.druid.pool.DruidDataSource
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: root
-    password: 123456
+    url: jdbc:mysql://47.109.66.6:3808/pilipili_video?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: piliapp
+    password: BZc37XZGFdF3KLmi
+    # Druid连接池配置
+    druid:
+      # 初始连接数
+      initial-size: 5
+      # 最小连接池数量
+      min-idle: 5
+      # 最大连接池数量
+      max-active: 20
+      # 配置获取连接等待超时的时间
+      max-wait: 60000
+      # 配置间隔多久才进行一次检测，检测需要关闭的空闲连接，单位是毫秒
+      time-between-eviction-runs-millis: 60000
+      # 配置一个连接在池中最小生存的时间，单位是毫秒
+      min-evictable-idle-time-millis: 300000
+      # 配置一个连接在池中最大生存的时间，单位是毫秒
+      max-evictable-idle-time-millis: 900000
+      # 配置检测连接是否有效
+      validation-query: SELECT 1 FROM DUAL
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+      # 打开PSCache，并且指定每个连接上PSCache的大小
+      pool-prepared-statements: true
+      max-pool-prepared-statement-per-connection-size: 20
+      # 配置监控统计拦截的filters，去掉后监控界面sql无法统计，'wall'用于防火墙
+      filters: stat,wall,slf4j
+      # 通过connectProperties属性来打开mergeSql功能；慢SQL记录
+      connection-properties: druid.stat.mergeSql\=true;druid.stat.slowSqlMillis\=5000
+      # 配置DruidStatFilter
+      web-stat-filter:
+        enabled: true
+        url-pattern: "/*"
+        exclusions: "*.js,*.gif,*.jpg,*.bmp,*.png,*.css,*.ico,/druid/*"
+      # 配置DruidStatViewServlet
+      stat-view-servlet:
+        enabled: true
+        # 设置控制台管理用户
+        login-username: admin
+        login-password: admin123
+        # 禁用HTML页面上的"Reset All"功能
+        reset-enable: false
+        url-pattern: "/druid/*"
+        # IP白名单(没有配置或者为空，则允许所有访问)
+        allow: 127.0.0.1,192.168.163.1
+        # IP黑名单 (存在共同时，deny优先于allow)
+        deny: 192.168.1.73
+      # 配置监控统计
+      filter:
+        stat:
+          enabled: true
+          # 慢SQL记录
+          slow-sql-millis: 5000
+          log-slow-sql: true
+        wall:
+          enabled: true
+          config:
+            # 不允许执行批量更新
+            multi-statement-allow: false
+  redis:
+    host: 47.109.66.6
+    port: 6481
+    password: p1l1p!l!Vide0
+    database: 0
+    timeout: 3000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-wait: -1ms
+        max-idle: 8
+        min-idle: 0
+  # Spring MVC配置，修复Swagger兼容性问题
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
 
 server:
   port: 8316
@@ -14,9 +89,30 @@ mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
   configuration:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# 文件上传配置
+file:
+  upload:
+    path: ./uploads
+  max-size: 524288000  # 500MB
 
 
 pilipili:
   user:
     admin:
       password: liam1683
+
+# JWT配置
+jwt:
+  secret: pilipili-video-secret-key-2023-please-change-in-production
+  expiration: 604800000  # Token过期时间（毫秒），默认7天
+
+# 日志配置
+logging:
+  level:
+    io.swagger.models.parameters.AbstractSerializableParameter: WARN
+    springfox.documentation: WARN

@@ -55,6 +55,83 @@ public class UserService implements UserDetailsService {
     }
 
     public void saveUser(String password){
-          bv  
+        // TODO: 实现普通用户保存逻辑
+    }
+
+    /**
+     * 用户注册
+     */
+    public void register(User user) {
+        // 检查用户名是否已存在
+        User existingUser = userRepository.findByUsername(user.getUsername());
+        if (existingUser != null) {
+            throw new RuntimeException("用户名已存在");
+        }
+
+        // 检查邮箱是否已存在
+        if (user.getEmail() != null && !user.getEmail().isEmpty()) {
+            existingUser = userRepository.findByUsername(user.getEmail());
+            if (existingUser != null) {
+                throw new RuntimeException("邮箱已被注册");
+            }
+        }
+
+        user.setCreateId(-1L);
+        user.setCreateName("system");
+        user.setUpdateId(-1L);
+        user.setUpdateName("system");
+        user.setUpdateTime(new Date());
+        userRepository.save(user);
+    }
+
+    /**
+     * 更新用户信息
+     */
+    public User updateUserInfo(Long userId, com.pilipili.entity.in.UserCondition userCondition) {
+        User user = userRepository.getById(userId);
+        if (user == null) {
+            throw new RuntimeException("用户不存在");
+        }
+
+        if (userCondition.getNikeName() != null) {
+            user.setNikeName(userCondition.getNikeName());
+        }
+        if (userCondition.getEmail() != null) {
+            user.setEmail(userCondition.getEmail());
+        }
+        if (userCondition.getPhone() != null) {
+            user.setPhone(userCondition.getPhone());
+        }
+        if (userCondition.getSex() != null) {
+            user.setGender(userCondition.getSex());
+        }
+
+        user.setUpdateId(userId);
+        user.setUpdateName(user.getUsername());
+        user.setUpdateTime(new Date());
+        userRepository.updateById(user);
+        return user;
+    }
+
+    /**
+     * 修改密码
+     */
+    public void changePassword(Long userId, String oldPassword, String newPassword) {
+        User user = userRepository.getById(userId);
+        if (user == null) {
+            throw new RuntimeException("用户不存在");
+        }
+
+        // 验证旧密码
+        if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
+            throw new RuntimeException("原密码错误");
+        }
+
+        // 设置新密码
+        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setUpdateId(userId);
+        user.setUpdateName(user.getUsername());
+        user.setUpdateTime(new Date());
+        userRepository.updateById(user);
     }
 }

@@ -4,17 +4,18 @@ import com.baomidou.mybatisplus.annotation.*;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import io.swagger.annotations.ApiModelProperty;
+import lombok.Data;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import java.io.Serializable;
 import java.util.Date;
-import java.util.Objects;
 
 /**
  * @author Liam
  * @version 1.0
- * @date 2023/3/10 22:26
+ * @since 2023/3/10 22:26
  */
+@Data
 @JsonSerialize
 public class BaseEntity implements Serializable {
     private static final Long serialVersionUID = 1L;
@@ -92,103 +93,5 @@ public class BaseEntity implements Serializable {
         this.updateName = updateName;
         this.updateTime = updateTime;
         this.logicDel = logicDel;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Long getCreateId() {
-        return createId;
-    }
-
-    public void setCreateId(Long createId) {
-        this.createId = createId;
-    }
-
-    public String getCreateName() {
-        return createName;
-    }
-
-    public void setCreateName(String createName) {
-        this.createName = createName;
-    }
-
-    public Date getCreateTime() {
-        return createTime;
-    }
-
-    public void setCreateTime(Date createTime) {
-        this.createTime = createTime;
-    }
-
-    public Long getUpdateId() {
-        return updateId;
-    }
-
-    public void setUpdateId(Long updateId) {
-        this.updateId = updateId;
-    }
-
-    public String getUpdateName() {
-        return updateName;
-    }
-
-    public void setUpdateName(String updateName) {
-        this.updateName = updateName;
-    }
-
-    public Date getUpdateTime() {
-        return updateTime;
-    }
-
-    public void setUpdateTime(Date updateTime) {
-        this.updateTime = updateTime;
-    }
-
-    public Integer getLogicDel() {
-        return logicDel;
-    }
-
-    public void setLogicDel(Integer logicDel) {
-        this.logicDel = logicDel;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) { return true; }
-        if (!(o instanceof BaseEntity)) { return false; }
-        BaseEntity that = (BaseEntity) o;
-        return getId().equals(that.getId()) &&
-                Objects.equals(getCreateId(), that.getCreateId()) &&
-                Objects.equals(getCreateName(), that.getCreateName()) &&
-                Objects.equals(getCreateTime(), that.getCreateTime()) &&
-                Objects.equals(getUpdateId(), that.getUpdateId()) &&
-                Objects.equals(getUpdateName(), that.getUpdateName()) &&
-                Objects.equals(getUpdateTime(), that.getUpdateTime()) &&
-                getLogicDel().equals(that.getLogicDel());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(getId(), getCreateId(), getCreateName(), getCreateTime(), getUpdateId(), getUpdateName(), getUpdateTime(), getLogicDel());
-    }
-
-    @Override
-    public String toString() {
-        return "BaseEntity{" +
-                "id=" + id +
-                ", createId=" + createId +
-                ", createName='" + createName + '\'' +
-                ", createTime=" + createTime +
-                ", updateId=" + updateId +
-                ", updateName='" + updateName + '\'' +
-                ", updateTime=" + updateTime +
-                ", logicDel=" + logicDel +
-                '}';
     }
 }
