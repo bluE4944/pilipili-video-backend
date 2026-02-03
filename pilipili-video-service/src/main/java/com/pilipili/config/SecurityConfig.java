@@ -53,7 +53,7 @@ public class SecurityConfig {
                 // 公开接口：用户注册、登录、Swagger文档
                 .antMatchers("/api/user/register", "/api/auth/**", "/login", "/swagger-ui/**", "/swagger-resources/**", "/v2/api-docs", "/webjars/**", "/swagger-ui.html").permitAll()
                 // 公开接口：视频查询、搜索、播放（无需登录）
-                .antMatchers("/api/video/page", "/api/video/{videoId}", "/api/video/search/**", "/api/video/play/url/**", "/api/video/danmaku/{videoId}", "/api/auth/login").permitAll()
+                .antMatchers("/api/video/page", "/api/video/page/mixed", "/api/video/{videoId}", "/api/video/search/**", "/api/video/play/url/**", "/api/video/stream/**", "/api/video/danmaku/{videoId}", "/api/auth/login").permitAll()
                 // 公开接口：视频统计（部分）
                 .antMatchers("/api/video/statistics/video/**", "/api/video/statistics/hot/**").permitAll()
                 // WebSocket端点

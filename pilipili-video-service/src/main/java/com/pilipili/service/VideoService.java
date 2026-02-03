@@ -4,8 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pilipili.entity.User;
 import com.pilipili.entity.Video;
+import com.pilipili.entity.VideoCollection;
 import com.pilipili.entity.in.VideoCondition;
+import com.pilipili.entity.out.VideoListItem;
 import com.pilipili.exception.BusinessException;
+import com.pilipili.repository.VideoCollectionRepository;
 import com.pilipili.repository.VideoRepository;
 import com.pilipili.utils.FileUploadUtil;
 import com.pilipili.utils.Status;
@@ -18,6 +21,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Date;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
 
 /**
  * 视频服务类
@@ -31,6 +36,7 @@ import java.util.List;
 public class VideoService {
 
     private final VideoRepository videoRepository;
+    private final VideoCollectionRepository videoCollectionRepository;
     private final StorageService storageService;
 
     /**
@@ -187,6 +193,87 @@ public class VideoService {
 
         wrapper.orderByDesc("create_time");
         return videoRepository.page(page, wrapper);
+    }
+
+    /**
+     * 混合分页：合集 + 单视频（未关联合集的视频）
+     */
+    public Page<VideoListItem> getMixedVideoPage(VideoCondition condition, Integer pageNum, Integer pageSize) {
+        if (condition == null) {
+            condition = new VideoCondition();
+        }
+        long fetchSize = (long) pageNum * pageSize;
+
+        // 查询合集
+        Page<VideoCollection> collectionPage = new Page<>(1, fetchSize);
+        QueryWrapper<VideoCollection> collectionWrapper = new QueryWrapper<>();
+        collectionWrapper.eq("enabled", 1);
+        if (condition.getTitle() != null && !condition.getTitle().isEmpty()) {
+            collectionWrapper.like("title", condition.getTitle());
+        }
+        collectionWrapper.orderByDesc("create_time");
+        collectionPage = videoCollectionRepository.page(collectionPage, collectionWrapper);
+
+        // 查询未关联合集的单视频
+        Page<Video> videoPage = new Page<>(1, fetchSize);
+        QueryWrapper<Video> videoWrapper = new QueryWrapper<>();
+        if (condition.getTitle() != null && !condition.getTitle().isEmpty()) {
+            videoWrapper.like("title", condition.getTitle());
+        }
+        if (condition.getCategoryId() != null) {
+            videoWrapper.eq("category_id", condition.getCategoryId());
+        }
+        if (condition.getUserId() != null) {
+            videoWrapper.eq("user_id", condition.getUserId());
+        }
+        if (condition.getStatus() != null) {
+            videoWrapper.eq("status", condition.getStatus());
+        }
+        if (condition.getTags() != null && !condition.getTags().isEmpty()) {
+            videoWrapper.like("tags", condition.getTags());
+        }
+        videoWrapper.notInSql("id", "select video_id from t_video_episode where video_id is not null");
+        videoWrapper.orderByDesc("create_time");
+        videoPage = videoRepository.page(videoPage, videoWrapper);
+
+        List<VideoListItem> merged = mergeCollectionsAndVideos(collectionPage.getRecords(), videoPage.getRecords(), fetchSize);
+
+        int fromIndex = Math.max(0, (pageNum - 1) * pageSize);
+        int toIndex = Math.min(fromIndex + pageSize, merged.size());
+        List<VideoListItem> pageRecords = fromIndex >= merged.size() ? Collections.emptyList() : merged.subList(fromIndex, toIndex);
+
+        Page<VideoListItem> page = new Page<>(pageNum, pageSize);
+        page.setTotal(collectionPage.getTotal() + videoPage.getTotal());
+        page.setRecords(pageRecords);
+        return page;
+    }
+
+    private List<VideoListItem> mergeCollectionsAndVideos(List<VideoCollection> collections, List<Video> videos, long limit) {
+        List<VideoListItem> merged = new ArrayList<>();
+        int i = 0;
+        int j = 0;
+        while (merged.size() < limit && (i < collections.size() || j < videos.size())) {
+            VideoCollection collection = i < collections.size() ? collections.get(i) : null;
+            Video video = j < videos.size() ? videos.get(j) : null;
+
+            Date collectionTime = collection != null ? collection.getCreateTime() : null;
+            Date videoTime = video != null ? video.getCreateTime() : null;
+
+            if (videoTime == null || (collectionTime != null && collectionTime.after(videoTime))) {
+                VideoListItem item = new VideoListItem();
+                item.setItemType("collection");
+                item.setCollection(collection);
+                merged.add(item);
+                i++;
+            } else {
+                VideoListItem item = new VideoListItem();
+                item.setItemType("video");
+                item.setVideo(video);
+                merged.add(item);
+                j++;
+            }
+        }
+        return merged;
     }
 
     /**

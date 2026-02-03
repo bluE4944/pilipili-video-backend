@@ -2,6 +2,7 @@ package com.pilipili.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pilipili.entity.LocalFolderConfig;
+import com.pilipili.entity.User;
 import com.pilipili.entity.out.Result;
 import com.pilipili.service.LocalFolderConfigService;
 import com.pilipili.service.VideoScanService;
@@ -10,6 +11,8 @@ import io.swagger.annotations.ApiOperation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,6 +32,14 @@ public class LocalFolderConfigController {
 
     private final LocalFolderConfigService localFolderConfigService;
     private final VideoScanService videoScanService;
+
+    private User getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof User) {
+            return (User) authentication.getPrincipal();
+        }
+        throw new RuntimeException("用户未登录");
+    }
 
     /**
      * 添加文件夹配置
@@ -99,7 +110,8 @@ public class LocalFolderConfigController {
     @PostMapping("/scan/{configId}")
     @ApiOperation("扫描文件夹")
     public Result<?> scanFolder(@PathVariable Long configId) {
-        videoScanService.scanAndCreateCollections(configId);
+        User user = getCurrentUser();
+        videoScanService.scanAndCreateCollections(configId, user);
         return Result.build();
     }
 }

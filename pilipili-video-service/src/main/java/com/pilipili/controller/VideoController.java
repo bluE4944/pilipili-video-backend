@@ -5,6 +5,7 @@ import com.pilipili.entity.User;
 import com.pilipili.entity.Video;
 import com.pilipili.entity.in.VideoCondition;
 import com.pilipili.entity.out.Result;
+import com.pilipili.entity.out.VideoListItem;
 import com.pilipili.service.VideoService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -122,6 +123,20 @@ public class VideoController {
         Page<Video> page = videoService.getVideoPage(condition, pageNum, pageSize);
         return Result.build(page);
     }
+
+    /**
+     * 混合分页查询（合集 + 单视频）
+     */
+    @GetMapping("/page/mixed")
+    @ApiOperation("混合分页查询（合集 + 单视频）")
+    public Result<Page<VideoListItem>> getMixedVideoPage(
+            @ModelAttribute VideoCondition condition,
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "10") Integer pageSize) {
+        Page<VideoListItem> page = videoService.getMixedVideoPage(condition, pageNum, pageSize);
+        return Result.build(page);
+    }
+
 
     /**
      * 根据ID获取视频
