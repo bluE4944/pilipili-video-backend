@@ -3,6 +3,7 @@ package com.pilipili.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pilipili.entity.Video;
 import com.pilipili.entity.out.Result;
+import com.pilipili.entity.out.VideoListItem;
 import com.pilipili.service.VideoSearchService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -84,8 +85,8 @@ public class VideoSearchController {
      */
     @GetMapping("/hot")
     @ApiOperation("热门视频推荐")
-    public Result<List<Video>> getHotVideos(@RequestParam(defaultValue = "10") Integer limit) {
-        List<Video> videos = videoSearchService.getHotVideos(limit);
-        return Result.build(videos);
+    public Result<List<VideoListItem>> getHotVideos(@RequestParam(defaultValue = "10") Integer limit) {
+        List<VideoListItem> items = videoSearchService.getHotVideos(limit);
+        return Result.build(items);
     }
 }

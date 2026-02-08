@@ -1,6 +1,10 @@
 spring:
   application:
     name: pilipili-video-backend
+  servlet:
+    multipart:
+      max-file-size: 2000MB
+      max-request-size: 2000MB
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -97,7 +101,7 @@ mybatis-plus:
 # 文件上传配置
 file:
   upload:
-    path: ./uploads
+    path: D:\Documents\www\uploads
   max-size: 524288000  # 500MB
 
 
@@ -116,3 +120,17 @@ logging:
   level:
     io.swagger.models.parameters.AbstractSerializableParameter: WARN
     springfox.documentation: WARN
+
+
+#
+video:
+  cover:
+    ffmpeg-path: D:\Program Files\ffmpeg-8.0.1-full_build\bin\ffmpeg.exe
+  scan:
+    similarity:
+      overlap-threshold: 0.85
+      lcs-threshold: 0.7
+      max-length-diff: 0.3
+    collection:
+      episode-hit-rate: 0.7
+      title-match-rate: 0.7

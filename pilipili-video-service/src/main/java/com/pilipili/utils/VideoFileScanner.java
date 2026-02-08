@@ -1,6 +1,7 @@
 package com.pilipili.utils;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
@@ -30,6 +31,20 @@ public class VideoFileScanner {
     private static final Set<String> VIDEO_EXTENSIONS = new HashSet<>(Arrays.asList(
             "mp4", "mkv", "avi", "flv", "mov", "wmv", "rmvb", "rm", "3gp", "webm", "m4v", "ts", "mts"
     ));
+
+    private static final Pattern SEASON_EPISODE_PATTERN = Pattern.compile("(?i)S\\d{1,2}E([0-9]{1,3})");
+    private static final Pattern NOISE_PATTERN = Pattern.compile(
+            "(?i)\\b(1080p|720p|2160p|4k|x264|x265|h264|hevc|bluray|bdrip|dvdrip|webrip|web[- ]?dl|hdr|10bit|aac|flac)\\b"
+    );
+
+    @Value("${video.scan.similarity.overlap-threshold:0.85}")
+    private double overlapThreshold;
+
+    @Value("${video.scan.similarity.lcs-threshold:0.7}")
+    private double lcsThreshold;
+
+    @Value("${video.scan.similarity.max-length-diff:0.3}")
+    private double maxLengthDiffRatio;
 
     /**
      * 集数匹配模式（如：01, 02, 第1集, EP01等）
@@ -105,6 +120,15 @@ public class VideoFileScanner {
      * 提取集数
      */
     private String extractEpisodeNumber(String fileName) {
+        Matcher seasonMatcher = SEASON_EPISODE_PATTERN.matcher(fileName);
+        if (seasonMatcher.find()) {
+            String group = seasonMatcher.group(1);
+            if (group != null && !group.isEmpty()) {
+                int num = Integer.parseInt(group);
+                return String.format("%02d", num);
+            }
+        }
+
         Matcher matcher = EPISODE_PATTERN.matcher(fileName);
         if (matcher.find()) {
             for (int i = 1; i <= matcher.groupCount(); i++) {
@@ -127,6 +151,7 @@ public class VideoFileScanner {
         if (episodeNumber != null) {
             // 移除各种集数格式
             title = title.replaceAll("(?i)(?:第?" + episodeNumber + "[集话话]|EP" + episodeNumber + "|" + episodeNumber + "|E" + episodeNumber + ")", "");
+            title = title.replaceAll("(?i)S\\d{1,2}E" + episodeNumber, "");
             title = title.replaceAll("\\s*[-_\\s]+\\s*$", ""); // 移除末尾的分隔符
         }
         return title.trim();
@@ -164,7 +189,7 @@ public class VideoFileScanner {
      */
     private String findSimilarGroup(String title, Set<String> existingGroups) {
         for (String group : existingGroups) {
-            if (isSimilarTitle(title, group)) {
+            if (isSimilarTitlePrecise(title, group)) {
                 return group;
             }
         }
@@ -273,5 +298,125 @@ public class VideoFileScanner {
         public void setTitle(String title) { this.title = title; }
         public String getEpisodeNumber() { return episodeNumber; }
         public void setEpisodeNumber(String episodeNumber) { this.episodeNumber = episodeNumber; }
+    }
+    private boolean isSimilarTitlePrecise(String title1, String title2) {
+        String normalized1 = normalizeTitleForSimilarity(title1);
+        String normalized2 = normalizeTitleForSimilarity(title2);
+        if (normalized1.isEmpty() || normalized2.isEmpty()) {
+            return false;
+        }
+        if (normalized1.equals(normalized2)) {
+            return true;
+        }
+
+        int maxLen = Math.max(normalized1.length(), normalized2.length());
+        if (maxLen == 0) {
+            return false;
+        }
+        double lenDiffRatio = Math.abs(normalized1.length() - normalized2.length()) / (double) maxLen;
+        if (lenDiffRatio > maxLengthDiffRatio) {
+            return false;
+        }
+
+        Set<String> tokens1 = tokenize(normalized1);
+        Set<String> tokens2 = tokenize(normalized2);
+        if (tokens1.isEmpty() || tokens2.isEmpty()) {
+            return false;
+        }
+
+        double overlapRatio = calculateOverlap(tokens1, tokens2);
+        double lcsRatio = calculateLcsRatio(normalized1, normalized2);
+        return overlapRatio >= overlapThreshold && lcsRatio >= lcsThreshold;
+    }
+
+    private String normalizeTitleForSimilarity(String title) {
+        if (title == null) {
+            return "";
+        }
+        String normalized = title.toLowerCase();
+        normalized = normalized.replaceAll("[\\[\\]（）(){}【】]", " ");
+        normalized = normalized.replaceAll("(?i)S\\d{1,2}E\\d{1,3}", " ");
+        normalized = normalized.replaceAll("(?i)EP\\d{1,3}", " ");
+        normalized = normalized.replaceAll("(?i)E\\d{1,3}", " ");
+        normalized = normalized.replaceAll("第\\d+集|第\\d+话|第\\d+話", " ");
+        normalized = NOISE_PATTERN.matcher(normalized).replaceAll(" ");
+        normalized = normalized.replaceAll("[0-9]", " ");
+        normalized = normalized.replaceAll("[\\._\\-]+", " ");
+        normalized = normalized.replaceAll("\\s+", " ").trim();
+        return normalized;
+    }
+
+    private Set<String> tokenize(String normalized) {
+        Set<String> tokens = new HashSet<>();
+        StringBuilder buffer = new StringBuilder();
+        for (int i = 0; i < normalized.length(); i++) {
+            char c = normalized.charAt(i);
+            if (Character.isLetter(c)) {
+                buffer.append(c);
+            } else if (isCjk(c)) {
+                flushToken(buffer, tokens);
+                tokens.add(String.valueOf(c));
+            } else {
+                flushToken(buffer, tokens);
+            }
+        }
+        flushToken(buffer, tokens);
+        if (normalized.indexOf(' ') >= 0) {
+            String compact = normalized.replace(" ", "");
+            if (!compact.isEmpty()) {
+                tokens.add(compact);
+            }
+        }
+        return tokens;
+    }
+
+    private void flushToken(StringBuilder buffer, Set<String> tokens) {
+        if (buffer.length() > 0) {
+            tokens.add(buffer.toString());
+            buffer.setLength(0);
+        }
+    }
+
+    private boolean isCjk(char c) {
+        Character.UnicodeBlock block = Character.UnicodeBlock.of(c);
+        return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
+                || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A
+                || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B
+                || block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS;
+    }
+
+    private double calculateOverlap(Set<String> tokens1, Set<String> tokens2) {
+        int intersection = 0;
+        for (String token : tokens1) {
+            if (tokens2.contains(token)) {
+                intersection++;
+            }
+        }
+        int maxSize = Math.max(tokens1.size(), tokens2.size());
+        return maxSize == 0 ? 0.0 : (double) intersection / maxSize;
+    }
+
+    private double calculateLcsRatio(String str1, String str2) {
+        int lcs = longestCommonSubstring(str1, str2);
+        int maxLen = Math.max(str1.length(), str2.length());
+        return maxLen == 0 ? 0.0 : (double) lcs / maxLen;
+    }
+
+    private int longestCommonSubstring(String str1, String str2) {
+        int len1 = str1.length();
+        int len2 = str2.length();
+        int[][] dp = new int[len1 + 1][len2 + 1];
+        int max = 0;
+        for (int i = 1; i <= len1; i++) {
+            for (int j = 1; j <= len2; j++) {
+                if (str1.charAt(i - 1) == str2.charAt(j - 1)) {
+                    dp[i][j] = dp[i - 1][j - 1] + 1;
+                    if (dp[i][j] > max) {
+                        max = dp[i][j];
+                    }
+                }
+            }
+        }
+        return max;
     }
 }

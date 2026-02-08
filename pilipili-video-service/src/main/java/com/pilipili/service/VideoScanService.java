@@ -9,10 +9,12 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.pilipili.repository.VideoCollectionRepository;
 import com.pilipili.repository.VideoEpisodeRepository;
 import com.pilipili.repository.VideoRepository;
+import com.pilipili.utils.VideoCoverUtil;
 import com.pilipili.utils.VideoFileScanner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +31,20 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
 public class VideoScanService {
+
+    private static final String DEFAULT_COVER_FOLDER = "covers";
+
+    @Value("${file.upload.path:./uploads}")
+    private String uploadPath;
+
+    @Value("${video.cover.ffmpeg-path:ffmpeg}")
+    private String ffmpegPath;
+
+    @Value("${video.scan.collection.episode-hit-rate:0.7}")
+    private double episodeHitRate;
+
+    @Value("${video.scan.collection.title-match-rate:0.7}")
+    private double titleMatchRate;
 
     private final VideoFileScanner videoFileScanner;
     private final VideoCollectionRepository videoCollectionRepository;
@@ -57,24 +73,37 @@ public class VideoScanService {
             List<VideoFileScanner.VideoFileInfo> videoFiles = videoFileScanner.scanFolder(config.getFolderPath());
             log.info("扫描到 {} 个视频文件", videoFiles.size());
 
-            // 分组相似文件
-            Map<String, List<VideoFileScanner.VideoFileInfo>> groups = videoFileScanner.groupSimilarFiles(videoFiles);
-            log.info("识别到 {} 个视频合集", groups.size());
+            Map<String, List<VideoFileScanner.VideoFileInfo>> folderGroups = groupByParentFolder(videoFiles);
+            int collectionCount = 0;
+            int singleCount = 0;
+            for (Map.Entry<String, List<VideoFileScanner.VideoFileInfo>> entry : folderGroups.entrySet()) {
+                String folderPath = entry.getKey();
+                String folderName = getFolderName(folderPath);
+                List<VideoFileScanner.VideoFileInfo> files = entry.getValue();
 
-            // 创建合集和分集
-            for (Map.Entry<String, List<VideoFileScanner.VideoFileInfo>> entry : groups.entrySet()) {
-                createCollection(entry.getKey(), entry.getValue(), config.getFolderPath(), user);
+                if (isCollectionFolder(files, folderName)) {
+                    String collectionTitle = resolveCollectionTitle(files, folderName);
+                    createCollection(collectionTitle, files, config.getFolderPath(), user);
+                    collectionCount++;
+                    continue;
+                }
+
+                Map<String, List<VideoFileScanner.VideoFileInfo>> groups = videoFileScanner.groupSimilarFiles(files);
+                for (Map.Entry<String, List<VideoFileScanner.VideoFileInfo>> groupEntry : groups.entrySet()) {
+                    createCollection(groupEntry.getKey(), groupEntry.getValue(), config.getFolderPath(), user);
+                    collectionCount++;
+                }
+
+                List<VideoFileScanner.VideoFileInfo> singleFiles = files.stream()
+                        .filter(file -> groups.values().stream()
+                                .noneMatch(group -> group.contains(file)))
+                        .collect(Collectors.toList());
+                for (VideoFileScanner.VideoFileInfo file : singleFiles) {
+                    createStandaloneVideo(file, user);
+                    singleCount++;
+                }
             }
-
-            // 处理单个视频文件（未分组的）
-            List<VideoFileScanner.VideoFileInfo> singleFiles = videoFiles.stream()
-                    .filter(file -> groups.values().stream()
-                            .noneMatch(group -> group.contains(file)))
-                    .collect(Collectors.toList());
-
-            for (VideoFileScanner.VideoFileInfo file : singleFiles) {
-                createSingleVideoCollection(file, config.getFolderPath(), user);
-            }
+            log.info("扫描分组完成: collectionCount={}, singleVideoCount={}", collectionCount, singleCount);
 
             // 更新扫描状态为完成
             localFolderConfigService.updateScanStatus(configId, 2, new Date());
@@ -116,6 +145,10 @@ public class VideoScanService {
             return ep1.compareTo(ep2);
         });
 
+        if (!files.isEmpty()) {
+            applyCollectionCoverIfNeeded(collection, files.get(0), user);
+        }
+
         QueryWrapper<VideoEpisode> episodeWrapper = new QueryWrapper<>();
         episodeWrapper.eq("collection_id", collection.getId());
         List<VideoEpisode> existingEpisodes = videoEpisodeRepository.list(episodeWrapper);
@@ -133,6 +166,8 @@ public class VideoScanService {
                     existingEpisode.setVideoId(video.getId());
                     existingEpisode.setUpdateTime(new Date());
                     videoEpisodeRepository.updateById(existingEpisode);
+                } else {
+                    ensureDefaultCover(existingEpisode.getVideoId(), file, user);
                 }
                 continue;
             }
@@ -195,15 +230,22 @@ public class VideoScanService {
         episodeWrapper.eq("file_path", file.getFilePath());
         VideoEpisode existingEpisode = videoEpisodeRepository.getOne(episodeWrapper);
         if (existingEpisode != null) {
+            boolean coverUpdated = applyCollectionCoverIfNeeded(collection, file, user);
             if (existingEpisode.getVideoId() == null) {
                 Video video = getOrCreateVideo(file, user);
                 existingEpisode.setVideoId(video.getId());
                 existingEpisode.setUpdateTime(new Date());
                 videoEpisodeRepository.updateById(existingEpisode);
+            } else {
+                ensureDefaultCover(existingEpisode.getVideoId(), file, user);
+            }
+            if (coverUpdated) {
+                videoCollectionRepository.updateById(collection);
             }
             return;
         }
 
+        applyCollectionCoverIfNeeded(collection, file, user);
         Video video = getOrCreateVideo(file, user);
         VideoEpisode episode = new VideoEpisode();
         episode.setCollectionId(collection.getId());
@@ -231,6 +273,13 @@ public class VideoScanService {
     }
 
     /**
+     * 创建单个视频（不整合成合集）
+     */
+    private void createStandaloneVideo(VideoFileScanner.VideoFileInfo file, User user) {
+        getOrCreateVideo(file, user);
+    }
+
+    /**
      * 查找已存在的合集
      */
     private VideoCollection findExistingCollection(String title, String sourceFolder) {
@@ -245,12 +294,17 @@ public class VideoScanService {
         wrapper.eq("video_url", file.getFilePath());
         Video existing = videoRepository.getOne(wrapper);
         if (existing != null) {
+            ensureDefaultCover(existing, file, user);
             return existing;
         }
 
         Video video = new Video();
         video.setTitle(buildVideoTitle(file));
         video.setDescription("本地扫描视频");
+        String coverUrl = generateDefaultCover(file);
+        if (coverUrl != null) {
+            video.setCoverUrl(coverUrl);
+        }
         video.setVideoUrl(file.getFilePath());
         video.setFileSize(file.getFileSize());
         video.setFormat(file.getFileFormat());
@@ -270,6 +324,51 @@ public class VideoScanService {
         return video;
     }
 
+    private boolean applyCollectionCoverIfNeeded(VideoCollection collection, VideoFileScanner.VideoFileInfo file, User user) {
+        if (collection.getCoverUrl() != null && !collection.getCoverUrl().isEmpty()) {
+            return false;
+        }
+        Video video = getOrCreateVideo(file, user);
+        if (video.getCoverUrl() == null || video.getCoverUrl().isEmpty()) {
+            return false;
+        }
+        collection.setCoverUrl(video.getCoverUrl());
+        collection.setUpdateId(user.getId());
+        collection.setUpdateName(user.getUsername());
+        collection.setUpdateTime(new Date());
+        return true;
+    }
+
+    private void ensureDefaultCover(Video existing, VideoFileScanner.VideoFileInfo file, User user) {
+        if (existing.getCoverUrl() != null && !existing.getCoverUrl().isEmpty()) {
+            return;
+        }
+        String coverUrl = generateDefaultCover(file);
+        if (coverUrl == null) {
+            return;
+        }
+        existing.setCoverUrl(coverUrl);
+        existing.setUpdateId(user.getId());
+        existing.setUpdateName(user.getUsername());
+        existing.setUpdateTime(new Date());
+        videoRepository.updateById(existing);
+    }
+
+    private void ensureDefaultCover(Long videoId, VideoFileScanner.VideoFileInfo file, User user) {
+        if (videoId == null) {
+            return;
+        }
+        Video existing = videoRepository.getById(videoId);
+        if (existing == null) {
+            return;
+        }
+        ensureDefaultCover(existing, file, user);
+    }
+
+    private String generateDefaultCover(VideoFileScanner.VideoFileInfo file) {
+        return VideoCoverUtil.extractFirstFrame(file.getFilePath(), uploadPath, DEFAULT_COVER_FOLDER, ffmpegPath);
+    }
+
     private String buildVideoTitle(VideoFileScanner.VideoFileInfo file) {
         if (file.getEpisodeNumber() != null && file.getTitle() != null && !file.getTitle().isEmpty()) {
             return file.getTitle() + " 第" + file.getEpisodeNumber() + "集";
@@ -278,5 +377,124 @@ public class VideoScanService {
             return file.getTitle();
         }
         return file.getFileName();
+    }
+    private Map<String, List<VideoFileScanner.VideoFileInfo>> groupByParentFolder(List<VideoFileScanner.VideoFileInfo> files) {
+        Map<String, List<VideoFileScanner.VideoFileInfo>> map = new HashMap<>();
+        for (VideoFileScanner.VideoFileInfo file : files) {
+            String folderPath = getParentFolderPath(file.getFilePath());
+            map.computeIfAbsent(folderPath, k -> new ArrayList<>()).add(file);
+        }
+        return map;
+    }
+
+    private String getParentFolderPath(String filePath) {
+        if (filePath == null || filePath.isEmpty()) {
+            return "";
+        }
+        try {
+            java.nio.file.Path path = java.nio.file.Paths.get(filePath);
+            java.nio.file.Path parent = path.getParent();
+            return parent == null ? "" : parent.toString();
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private String getFolderName(String folderPath) {
+        if (folderPath == null || folderPath.isEmpty()) {
+            return "";
+        }
+        try {
+            java.nio.file.Path path = java.nio.file.Paths.get(folderPath);
+            java.nio.file.Path name = path.getFileName();
+            return name == null ? "" : name.toString();
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private boolean isCollectionFolder(List<VideoFileScanner.VideoFileInfo> files, String folderName) {
+        if (files == null || files.size() < 2) {
+            return false;
+        }
+        int episodeCount = 0;
+        int emptyTitleCount = 0;
+        Map<String, Integer> titleCount = new HashMap<>();
+        String normalizedFolder = normalizeTitle(folderName);
+
+        for (VideoFileScanner.VideoFileInfo file : files) {
+            if (file.getEpisodeNumber() != null && !file.getEpisodeNumber().isEmpty()) {
+                episodeCount++;
+            }
+            String title = normalizeTitle(file.getTitle());
+            if (title.isEmpty()) {
+                emptyTitleCount++;
+            } else {
+                titleCount.put(title, titleCount.getOrDefault(title, 0) + 1);
+            }
+        }
+
+        if (episodeCount < 2 || episodeCount < Math.ceil(files.size() * episodeHitRate)) {
+            return false;
+        }
+
+        if (emptyTitleCount >= Math.ceil(files.size() * titleMatchRate)) {
+            return true;
+        }
+
+        if (!normalizedFolder.isEmpty()) {
+            int folderMatchCount = 0;
+            for (String title : titleCount.keySet()) {
+                if (title.equals(normalizedFolder) || title.contains(normalizedFolder) || normalizedFolder.contains(title)) {
+                    folderMatchCount += titleCount.get(title);
+                }
+            }
+            if (folderMatchCount >= Math.ceil(files.size() * titleMatchRate)) {
+                return true;
+            }
+        }
+
+        int maxCount = 0;
+        for (Integer count : titleCount.values()) {
+            if (count > maxCount) {
+                maxCount = count;
+            }
+        }
+        return maxCount >= Math.max(2, (int) Math.ceil(files.size() * titleMatchRate));
+    }
+
+    private String resolveCollectionTitle(List<VideoFileScanner.VideoFileInfo> files, String folderName) {
+        if (folderName != null && !folderName.trim().isEmpty()) {
+            return folderName.trim();
+        }
+        Map<String, Integer> titleCount = new HashMap<>();
+        for (VideoFileScanner.VideoFileInfo file : files) {
+            String title = file.getTitle();
+            if (title != null && !title.trim().isEmpty()) {
+                titleCount.put(title, titleCount.getOrDefault(title, 0) + 1);
+            }
+        }
+        String bestTitle = "";
+        int bestCount = 0;
+        for (Map.Entry<String, Integer> entry : titleCount.entrySet()) {
+            if (entry.getValue() > bestCount) {
+                bestTitle = entry.getKey();
+                bestCount = entry.getValue();
+            }
+        }
+        if (!bestTitle.isEmpty()) {
+            return bestTitle;
+        }
+        return files.isEmpty() ? "未命名合集" : files.get(0).getFileName();
+    }
+
+    private String normalizeTitle(String title) {
+        if (title == null) {
+            return "";
+        }
+        return title.replaceAll("[\\[\\]()]", "")
+                .replaceAll("[0-9\\s\\-_]", "")
+                .toLowerCase()
+                .trim();
     }
 }

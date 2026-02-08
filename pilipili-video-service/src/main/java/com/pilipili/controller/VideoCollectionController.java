@@ -48,7 +48,13 @@ public class VideoCollectionController {
         }
         wrapper.eq("enabled", 1);
         wrapper.orderByDesc("create_time");
-        return Result.build(videoCollectionRepository.page(page, wrapper));
+        Page<VideoCollection> result = videoCollectionRepository.page(page, wrapper);
+        if (result.getRecords() != null) {
+            for (VideoCollection collection : result.getRecords()) {
+                normalizeCollectionCoverUrl(collection);
+            }
+        }
+        return Result.build(result);
     }
 
     /**
@@ -58,6 +64,7 @@ public class VideoCollectionController {
     @ApiOperation("根据ID获取合集详情")
     public Result<VideoCollection> getCollectionById(@PathVariable Long collectionId) {
         VideoCollection collection = videoCollectionRepository.getById(collectionId);
+        normalizeCollectionCoverUrl(collection);
         return Result.build(collection);
     }
 
@@ -82,6 +89,7 @@ public class VideoCollectionController {
     public Result<VideoCollection> updateCollection(@PathVariable Long collectionId, @RequestBody VideoCollection collection) {
         collection.setId(collectionId);
         videoCollectionRepository.updateById(collection);
+        normalizeCollectionCoverUrl(collection);
         return Result.build(collection);
     }
 
@@ -97,5 +105,23 @@ public class VideoCollectionController {
         wrapper.eq("collection_id", collectionId);
         videoEpisodeRepository.remove(wrapper);
         return Result.build();
+    }
+    private void normalizeCollectionCoverUrl(VideoCollection collection) {
+        if (collection == null || collection.getId() == null) {
+            return;
+        }
+        String coverUrl = collection.getCoverUrl();
+        if (coverUrl == null || coverUrl.isEmpty()) {
+            collection.setCoverUrl("/api/cover/collection/" + collection.getId());
+            return;
+        }
+        if (isRemoteUrl(coverUrl)) {
+            return;
+        }
+        collection.setCoverUrl("/api/cover/collection/" + collection.getId());
+    }
+
+    private boolean isRemoteUrl(String url) {
+        return url.startsWith("http://") || url.startsWith("https://");
     }
 }

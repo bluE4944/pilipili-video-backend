@@ -99,7 +99,9 @@ public class VideoStatisticsService {
         wrapper.eq("status", 1); // 只统计已上线的视频
         wrapper.orderByDesc("play_count", "like_count");
         wrapper.last("LIMIT " + limit);
-        return videoRepository.list(wrapper);
+        List<Video> videos = videoRepository.list(wrapper);
+        normalizeListCoverUrl(videos);
+        return videos;
     }
 
     /**
@@ -114,5 +116,32 @@ public class VideoStatisticsService {
             trend.put("total", video.getPlayCount());
         }
         return trend;
+    }
+    private void normalizeListCoverUrl(List<Video> videos) {
+        if (videos == null) {
+            return;
+        }
+        for (Video video : videos) {
+            normalizeVideoCoverUrl(video);
+        }
+    }
+
+    private void normalizeVideoCoverUrl(Video video) {
+        if (video == null || video.getId() == null) {
+            return;
+        }
+        String coverUrl = video.getCoverUrl();
+        if (coverUrl == null || coverUrl.isEmpty()) {
+            video.setCoverUrl("/api/cover/video/" + video.getId());
+            return;
+        }
+        if (isRemoteUrl(coverUrl)) {
+            return;
+        }
+        video.setCoverUrl("/api/cover/video/" + video.getId());
+    }
+
+    private boolean isRemoteUrl(String url) {
+        return url.startsWith("http://") || url.startsWith("https://");
     }
 }

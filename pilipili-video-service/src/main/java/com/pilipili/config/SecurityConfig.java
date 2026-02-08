@@ -53,7 +53,7 @@ public class SecurityConfig {
                 // 公开接口：用户注册、登录、Swagger文档
                 .antMatchers("/api/user/register", "/api/auth/**", "/login", "/swagger-ui/**", "/swagger-resources/**", "/v2/api-docs", "/webjars/**", "/swagger-ui.html").permitAll()
                 // 公开接口：视频查询、搜索、播放（无需登录）
-                .antMatchers("/api/video/page", "/api/video/page/mixed", "/api/video/{videoId}", "/api/video/search/**", "/api/video/play/url/**", "/api/video/stream/**", "/api/video/danmaku/{videoId}", "/api/auth/login").permitAll()
+                .antMatchers("/api/video/page", "/api/video/page/mixed", "/api/video/{videoId}", "/api/video/search/**", "/api/video/play/url/**", "/api/video/stream/**", "/api/video/danmaku/{videoId}", "/api/cover/**", "/api/auth/login").permitAll()
                 // 公开接口：视频统计（部分）
                 .antMatchers("/api/video/statistics/video/**", "/api/video/statistics/hot/**").permitAll()
                 // WebSocket端点
@@ -67,7 +67,7 @@ public class SecurityConfig {
                 // 视频互动接口需要USER角色
                 .antMatchers("/api/video/interaction/**").hasAnyRole(Role.ROLE_USER.getCode(), Role.ROLE_MANAGE.getCode(), Role.ROLE_ADMIN.getCode())
                 // 播放进度记录需要USER角色
-                .antMatchers("/api/video/play/progress/**").hasAnyRole(Role.ROLE_USER.getCode(), Role.ROLE_MANAGE.getCode(), Role.ROLE_ADMIN.getCode())
+                .antMatchers("/api/video/play/progress/**", "/api/video/play/recent").hasAnyRole(Role.ROLE_USER.getCode(), Role.ROLE_MANAGE.getCode(), Role.ROLE_ADMIN.getCode())
                 // 弹幕发送需要USER角色
                 .antMatchers("/api/video/danmaku").hasAnyRole(Role.ROLE_USER.getCode(), Role.ROLE_MANAGE.getCode(), Role.ROLE_ADMIN.getCode())
                 // 系统配置需要ADMIN角色

@@ -2,8 +2,11 @@ package com.pilipili.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.pilipili.entity.Video;
+import com.pilipili.entity.VideoCollection;
 import com.pilipili.entity.VideoEpisode;
 import com.pilipili.entity.VideoPlayHistory;
+import com.pilipili.entity.out.VideoPlayHistoryItem;
+import com.pilipili.repository.VideoCollectionRepository;
 import com.pilipili.repository.VideoEpisodeRepository;
 import com.pilipili.repository.VideoPlayHistoryRepository;
 import com.pilipili.repository.VideoRepository;
@@ -15,6 +18,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.ArrayList;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.stream.Collectors;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -31,6 +40,7 @@ public class VideoPlayService {
 
     private final VideoRepository videoRepository;
     private final VideoEpisodeRepository videoEpisodeRepository;
+    private final VideoCollectionRepository videoCollectionRepository;
     private final VideoPlayHistoryRepository videoPlayHistoryRepository;
 
     @Value("${file.upload.path:./uploads}")
@@ -159,9 +169,159 @@ public class VideoPlayService {
      * 获取播放进度
      */
     public VideoPlayHistory getPlayProgress(Long videoId, Long userId) {
+        if (videoId == null || userId == null) {
+            return null;
+        }
+
+        Video video = videoRepository.getById(videoId);
+        if (video != null) {
+            return getPlayProgressByVideoId(videoId, userId);
+        }
+
+        VideoCollection collection = videoCollectionRepository.getById(videoId);
+        if (collection == null) {
+            return null;
+        }
+
+        List<VideoEpisode> episodes = videoEpisodeRepository.list(
+                new QueryWrapper<VideoEpisode>().eq("collection_id", videoId)
+        );
+        if (episodes == null || episodes.isEmpty()) {
+            return null;
+        }
+
+        List<Long> videoIds = episodes.stream()
+                .map(VideoEpisode::getVideoId)
+                .filter(id -> id != null)
+                .distinct()
+                .collect(Collectors.toList());
+        if (videoIds.isEmpty()) {
+            return null;
+        }
+
+        QueryWrapper<VideoPlayHistory> wrapper = new QueryWrapper<>();
+        wrapper.eq("user_id", userId);
+        wrapper.in("video_id", videoIds);
+        wrapper.orderByDesc("update_time");
+        wrapper.last("limit 1");
+        List<VideoPlayHistory> histories = videoPlayHistoryRepository.list(wrapper);
+        return histories.isEmpty() ? null : histories.get(0);
+    }
+
+    private VideoPlayHistory getPlayProgressByVideoId(Long videoId, Long userId) {
         QueryWrapper<VideoPlayHistory> wrapper = new QueryWrapper<>();
         wrapper.eq("video_id", videoId);
         wrapper.eq("user_id", userId);
         return videoPlayHistoryRepository.getOne(wrapper);
+    }
+
+    public List<VideoPlayHistoryItem> getRecentPlayList(Long userId, Integer limit) {
+        int size = limit == null || limit <= 0 ? 10 : Math.min(limit, 100);
+        int fetchSize = Math.min(size * 3, 300);
+        QueryWrapper<VideoPlayHistory> wrapper = new QueryWrapper<>();
+        wrapper.eq("user_id", userId);
+        wrapper.orderByDesc("update_time");
+        wrapper.last("limit " + fetchSize);
+        List<VideoPlayHistory> histories = videoPlayHistoryRepository.list(wrapper);
+        if (histories == null || histories.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<Long> videoIds = histories.stream()
+                .map(VideoPlayHistory::getVideoId)
+                .filter(id -> id != null)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, Video> videoMap = videoRepository.listByIds(videoIds).stream()
+                .collect(Collectors.toMap(Video::getId, v -> v, (a, b) -> a));
+
+        List<VideoEpisode> episodes = videoEpisodeRepository.list(new QueryWrapper<VideoEpisode>().in("video_id", videoIds));
+        Map<Long, Long> videoToCollection = episodes.stream()
+                .filter(e -> e.getVideoId() != null && e.getCollectionId() != null)
+                .collect(Collectors.toMap(VideoEpisode::getVideoId, VideoEpisode::getCollectionId, (a, b) -> a));
+        Set<Long> collectionIds = new HashSet<>(videoToCollection.values());
+        Map<Long, VideoCollection> collectionMap = collectionIds.isEmpty()
+                ? java.util.Collections.emptyMap()
+                : videoCollectionRepository.listByIds(collectionIds).stream()
+                .collect(Collectors.toMap(VideoCollection::getId, c -> c, (a, b) -> a));
+
+        List<VideoPlayHistoryItem> items = new ArrayList<>();
+        Set<Long> seenCollections = new HashSet<>();
+        Set<Long> seenVideos = new HashSet<>();
+        for (VideoPlayHistory history : histories) {
+            if (items.size() >= size) {
+                break;
+            }
+            Long videoId = history.getVideoId();
+            if (videoId == null) {
+                continue;
+            }
+            Long collectionId = videoToCollection.get(videoId);
+            if (collectionId != null) {
+                if (!seenCollections.add(collectionId)) {
+                    continue;
+                }
+                VideoCollection collection = collectionMap.get(collectionId);
+                if (collection == null) {
+                    continue;
+                }
+                normalizeCollectionCoverUrl(collection);
+                VideoPlayHistoryItem item = new VideoPlayHistoryItem();
+                item.setHistory(history);
+                item.setItemType("collection");
+                item.setCollection(collection);
+                items.add(item);
+                continue;
+            }
+
+            if (!seenVideos.add(videoId)) {
+                continue;
+            }
+            Video video = videoMap.get(videoId);
+            if (video == null) {
+                continue;
+            }
+            normalizeVideoCoverUrl(video);
+            VideoPlayHistoryItem item = new VideoPlayHistoryItem();
+            item.setHistory(history);
+            item.setItemType("video");
+            item.setVideo(video);
+            items.add(item);
+        }
+        return items;
+    }
+
+    private void normalizeVideoCoverUrl(Video video) {
+        if (video == null || video.getId() == null) {
+            return;
+        }
+        String coverUrl = video.getCoverUrl();
+        if (coverUrl == null || coverUrl.isEmpty()) {
+            video.setCoverUrl("/api/cover/video/" + video.getId());
+            return;
+        }
+        if (isRemoteUrl(coverUrl)) {
+            return;
+        }
+        video.setCoverUrl("/api/cover/video/" + video.getId());
+    }
+
+    private boolean isRemoteUrl(String url) {
+        return url.startsWith("http://") || url.startsWith("https://");
+    }
+
+    private void normalizeCollectionCoverUrl(VideoCollection collection) {
+        if (collection == null || collection.getId() == null) {
+            return;
+        }
+        String coverUrl = collection.getCoverUrl();
+        if (coverUrl == null || coverUrl.isEmpty()) {
+            collection.setCoverUrl("/api/cover/collection/" + collection.getId());
+            return;
+        }
+        if (isRemoteUrl(coverUrl)) {
+            return;
+        }
+        collection.setCoverUrl("/api/cover/collection/" + collection.getId());
     }
 }

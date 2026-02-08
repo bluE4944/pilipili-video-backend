@@ -3,6 +3,7 @@ package com.pilipili.controller;
 import com.pilipili.entity.User;
 import com.pilipili.entity.VideoPlayHistory;
 import com.pilipili.entity.out.Result;
+import com.pilipili.entity.out.VideoPlayHistoryItem;
 import com.pilipili.service.VideoPlayService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -13,6 +14,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Collections;
+import java.util.List;
 
 /**
  * 视频播放控制器
@@ -72,12 +76,27 @@ public class VideoPlayController {
      */
     @GetMapping("/progress/{videoId}")
     @ApiOperation("获取播放进度")
-    public Result<VideoPlayHistory> getPlayProgress(@ApiParam(value = "视频ID", required = true, example = "1") @PathVariable Long videoId) {
+    public Result<VideoPlayHistory> getPlayProgress(@ApiParam(value = "视频ID或合集ID", required = true, example = "1") @PathVariable Long videoId) {
         User user = getCurrentUser();
         if (user == null) {
             return Result.build(null);
         }
         VideoPlayHistory history = videoPlayService.getPlayProgress(videoId, user.getId());
         return Result.build(history);
+    }
+
+    /**
+     * 最近播放列表
+     */
+    @GetMapping("/recent")
+    @ApiOperation("获取最近播放列表")
+    public Result<List<VideoPlayHistoryItem>> getRecentPlayList(
+            @ApiParam(value = "数量", example = "10") @RequestParam(defaultValue = "10") Integer size) {
+        User user = getCurrentUser();
+        if (user == null) {
+            return Result.build(Collections.emptyList());
+        }
+        List<VideoPlayHistoryItem> items = videoPlayService.getRecentPlayList(user.getId(), size);
+        return Result.build(items);
     }
 }

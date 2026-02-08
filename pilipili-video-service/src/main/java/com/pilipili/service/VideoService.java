@@ -11,10 +11,12 @@ import com.pilipili.exception.BusinessException;
 import com.pilipili.repository.VideoCollectionRepository;
 import com.pilipili.repository.VideoRepository;
 import com.pilipili.utils.FileUploadUtil;
+import com.pilipili.utils.VideoCoverUtil;
 import com.pilipili.utils.Status;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -23,6 +25,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 /**
  * 视频服务类
@@ -34,6 +38,14 @@ import java.util.Collections;
 @Service
 @RequiredArgsConstructor(onConstructor = @__(@Autowired))
 public class VideoService {
+
+    private static final String DEFAULT_COVER_FOLDER = "covers";
+
+    @Value("${file.upload.path:./uploads}")
+    private String uploadPath;
+
+    @Value("${video.cover.ffmpeg-path:ffmpeg}")
+    private String ffmpegPath;
 
     private final VideoRepository videoRepository;
     private final VideoCollectionRepository videoCollectionRepository;
@@ -68,6 +80,11 @@ public class VideoService {
             }
             String coverUrl = storageService.uploadFile(coverFile, "covers");
             video.setCoverUrl(coverUrl);
+        } else {
+            String coverUrl = generateDefaultCover(videoUrl);
+            if (coverUrl != null) {
+                video.setCoverUrl(coverUrl);
+            }
         }
 
         // 设置视频信息
@@ -102,6 +119,12 @@ public class VideoService {
     public Video completeVideoUpload(String folder, String uploadId, String filename, Video video, User user) {
         String videoUrl = storageService.completeChunkUpload(folder, uploadId, filename);
         video.setVideoUrl(videoUrl);
+        if (video.getCoverUrl() == null || video.getCoverUrl().isEmpty()) {
+            String coverUrl = generateDefaultCover(videoUrl);
+            if (coverUrl != null) {
+                video.setCoverUrl(coverUrl);
+            }
+        }
         video.setUserId(user.getId());
         video.setUserName(user.getUsername());
         video.setStatus(0);
@@ -192,7 +215,13 @@ public class VideoService {
         }
 
         wrapper.orderByDesc("create_time");
-        return videoRepository.page(page, wrapper);
+        Page<Video> result = videoRepository.page(page, wrapper);
+        if (result.getRecords() != null) {
+            for (Video item : result.getRecords()) {
+                normalizeVideoCoverUrl(item);
+            }
+        }
+        return result;
     }
 
     /**
@@ -245,6 +274,9 @@ public class VideoService {
         Page<VideoListItem> page = new Page<>(pageNum, pageSize);
         page.setTotal(collectionPage.getTotal() + videoPage.getTotal());
         page.setRecords(pageRecords);
+        for (VideoListItem item : pageRecords) {
+            normalizeListItemCoverUrl(item);
+        }
         return page;
     }
 
@@ -284,6 +316,7 @@ public class VideoService {
         if (video == null) {
             throw new BusinessException(Status.DATA_NOT_FOUNT, "视频不存在");
         }
+        normalizeVideoCoverUrl(video);
         return video;
     }
 
@@ -316,5 +349,87 @@ public class VideoService {
             video.setPlayCount(video.getPlayCount() + 1);
             videoRepository.updateById(video);
         }
+    }
+
+    private String generateDefaultCover(String videoUrl) {
+        Path localPath = resolveLocalPath(videoUrl);
+        if (localPath == null) {
+            return null;
+        }
+        return VideoCoverUtil.extractFirstFrame(localPath.toString(), uploadPath, DEFAULT_COVER_FOLDER, ffmpegPath);
+    }
+
+    private void normalizeListItemCoverUrl(VideoListItem item) {
+        if (item == null) {
+            return;
+        }
+        if (item.getVideo() != null) {
+            normalizeVideoCoverUrl(item.getVideo());
+        }
+        if (item.getCollection() != null) {
+            normalizeCollectionCoverUrl(item.getCollection());
+        }
+    }
+
+    private void normalizeVideoCoverUrl(Video video) {
+        if (video == null || video.getId() == null) {
+            return;
+        }
+        String coverUrl = video.getCoverUrl();
+        if (coverUrl == null || coverUrl.isEmpty()) {
+            video.setCoverUrl("/api/cover/video/" + video.getId());
+            return;
+        }
+        if (isRemoteUrl(coverUrl)) {
+            return;
+        }
+        video.setCoverUrl("/api/cover/video/" + video.getId());
+    }
+
+    private void normalizeCollectionCoverUrl(VideoCollection collection) {
+        if (collection == null || collection.getId() == null) {
+            return;
+        }
+        String coverUrl = collection.getCoverUrl();
+        if (coverUrl == null || coverUrl.isEmpty()) {
+            collection.setCoverUrl("/api/cover/collection/" + collection.getId());
+            return;
+        }
+        if (isRemoteUrl(coverUrl)) {
+            return;
+        }
+        collection.setCoverUrl("/api/cover/collection/" + collection.getId());
+    }
+
+    private Path resolveLocalPath(String url) {
+        if (url == null || url.isEmpty()) {
+            return null;
+        }
+        String normalized = stripQuery(url);
+        if (isRemoteUrl(normalized)) {
+            return null;
+        }
+        if (normalized.startsWith("/uploads/") || normalized.startsWith("uploads/")) {
+            normalized = normalized.startsWith("/") ? normalized.substring(1) : normalized;
+            normalized = normalized.substring("uploads/".length());
+            return Paths.get(uploadPath).resolve(normalized);
+        }
+        Path path = Paths.get(normalized);
+        if (path.isAbsolute()) {
+            return path;
+        }
+        if (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        return Paths.get(uploadPath).resolve(normalized);
+    }
+
+    private String stripQuery(String url) {
+        int idx = url.indexOf("?");
+        return idx >= 0 ? url.substring(0, idx) : url;
+    }
+
+    private boolean isRemoteUrl(String url) {
+        return url.startsWith("http://") || url.startsWith("https://");
     }
 }

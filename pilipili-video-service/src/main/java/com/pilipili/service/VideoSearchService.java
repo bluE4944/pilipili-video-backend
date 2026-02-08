@@ -3,6 +3,11 @@ package com.pilipili.service;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pilipili.entity.Video;
+import com.pilipili.entity.VideoCollection;
+import com.pilipili.entity.VideoEpisode;
+import com.pilipili.entity.out.VideoListItem;
+import com.pilipili.repository.VideoCollectionRepository;
+import com.pilipili.repository.VideoEpisodeRepository;
 import com.pilipili.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +16,11 @@ import org.springframework.stereotype.Service;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 视频搜索服务类
@@ -24,6 +34,8 @@ import java.util.List;
 public class VideoSearchService {
 
     private final VideoRepository videoRepository;
+    private final VideoEpisodeRepository videoEpisodeRepository;
+    private final VideoCollectionRepository videoCollectionRepository;
 
     /**
      * 关键词搜索
@@ -36,7 +48,9 @@ public class VideoSearchService {
                 .or().like("tags", keyword));
         wrapper.eq("status", 1); // 只搜索已上线的视频
         wrapper.orderByDesc("play_count", "create_time");
-        return videoRepository.page(page, wrapper);
+        Page<Video> result = videoRepository.page(page, wrapper);
+        normalizePageCoverUrl(result);
+        return result;
     }
 
     /**
@@ -48,7 +62,9 @@ public class VideoSearchService {
         wrapper.eq("category_id", categoryId);
         wrapper.eq("status", 1);
         wrapper.orderByDesc("create_time");
-        return videoRepository.page(page, wrapper);
+        Page<Video> result = videoRepository.page(page, wrapper);
+        normalizePageCoverUrl(result);
+        return result;
     }
 
     /**
@@ -60,7 +76,9 @@ public class VideoSearchService {
         wrapper.like("tags", tag);
         wrapper.eq("status", 1);
         wrapper.orderByDesc("play_count", "create_time");
-        return videoRepository.page(page, wrapper);
+        Page<Video> result = videoRepository.page(page, wrapper);
+        normalizePageCoverUrl(result);
+        return result;
     }
 
     /**
@@ -91,17 +109,135 @@ public class VideoSearchService {
 
         wrapper.orderByDesc("play_count", "like_count");
         wrapper.last("LIMIT " + limit);
-        return videoRepository.list(wrapper);
+        List<Video> videos = videoRepository.list(wrapper);
+        normalizeListCoverUrl(videos);
+        return videos;
     }
 
     /**
      * 热门视频推荐
      */
-    public List<Video> getHotVideos(Integer limit) {
+    public List<VideoListItem> getHotVideos(Integer limit) {
+        int size = limit == null || limit <= 0 ? 10 : Math.min(limit, 100);
+        int fetchSize = Math.min(size * 3, 300);
         QueryWrapper<Video> wrapper = new QueryWrapper<>();
         wrapper.eq("status", 1);
         wrapper.orderByDesc("play_count", "like_count", "create_time");
-        wrapper.last("LIMIT " + limit);
-        return videoRepository.list(wrapper);
+        wrapper.last("LIMIT " + fetchSize);
+        List<Video> videos = videoRepository.list(wrapper);
+        if (videos == null || videos.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return buildMixedItemsFromVideos(videos, size);
+    }
+
+    private List<VideoListItem> buildMixedItemsFromVideos(List<Video> videos, int limit) {
+        List<Long> videoIds = videos.stream()
+                .map(Video::getId)
+                .filter(id -> id != null)
+                .collect(Collectors.toList());
+        if (videoIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<VideoEpisode> episodes = videoEpisodeRepository.list(new QueryWrapper<VideoEpisode>().in("video_id", videoIds));
+        Map<Long, Long> videoToCollection = episodes.stream()
+                .filter(e -> e.getVideoId() != null && e.getCollectionId() != null)
+                .collect(Collectors.toMap(VideoEpisode::getVideoId, VideoEpisode::getCollectionId, (a, b) -> a));
+
+        Set<Long> collectionIds = new HashSet<>(videoToCollection.values());
+        Map<Long, VideoCollection> collectionMap = collectionIds.isEmpty()
+                ? Collections.emptyMap()
+                : videoCollectionRepository.listByIds(collectionIds).stream()
+                .collect(Collectors.toMap(VideoCollection::getId, c -> c, (a, b) -> a));
+
+        List<VideoListItem> items = new ArrayList<>();
+        Set<Long> seenCollections = new HashSet<>();
+        Set<Long> seenVideos = new HashSet<>();
+        for (Video video : videos) {
+            if (items.size() >= limit) {
+                break;
+            }
+            if (video == null || video.getId() == null) {
+                continue;
+            }
+            Long collectionId = videoToCollection.get(video.getId());
+            if (collectionId != null) {
+                if (!seenCollections.add(collectionId)) {
+                    continue;
+                }
+                VideoCollection collection = collectionMap.get(collectionId);
+                if (collection == null) {
+                    continue;
+                }
+                normalizeCollectionCoverUrl(collection);
+                VideoListItem item = new VideoListItem();
+                item.setItemType("collection");
+                item.setCollection(collection);
+                items.add(item);
+                continue;
+            }
+
+            if (!seenVideos.add(video.getId())) {
+                continue;
+            }
+            normalizeVideoCoverUrl(video);
+            VideoListItem item = new VideoListItem();
+            item.setItemType("video");
+            item.setVideo(video);
+            items.add(item);
+        }
+        return items;
+    }
+    private void normalizePageCoverUrl(Page<Video> page) {
+        if (page == null || page.getRecords() == null) {
+            return;
+        }
+        for (Video video : page.getRecords()) {
+            normalizeVideoCoverUrl(video);
+        }
+    }
+
+    private void normalizeListCoverUrl(List<Video> videos) {
+        if (videos == null) {
+            return;
+        }
+        for (Video video : videos) {
+            normalizeVideoCoverUrl(video);
+        }
+    }
+
+    private void normalizeVideoCoverUrl(Video video) {
+        if (video == null || video.getId() == null) {
+            return;
+        }
+        String coverUrl = video.getCoverUrl();
+        if (coverUrl == null || coverUrl.isEmpty()) {
+            video.setCoverUrl("/api/cover/video/" + video.getId());
+            return;
+        }
+        if (isRemoteUrl(coverUrl)) {
+            return;
+        }
+        video.setCoverUrl("/api/cover/video/" + video.getId());
+    }
+
+    private void normalizeCollectionCoverUrl(VideoCollection collection) {
+        if (collection == null || collection.getId() == null) {
+            return;
+        }
+        String coverUrl = collection.getCoverUrl();
+        if (coverUrl == null || coverUrl.isEmpty()) {
+            collection.setCoverUrl("/api/cover/collection/" + collection.getId());
+            return;
+        }
+        if (isRemoteUrl(coverUrl)) {
+            return;
+        }
+        collection.setCoverUrl("/api/cover/collection/" + collection.getId());
+    }
+
+    private boolean isRemoteUrl(String url) {
+        return url.startsWith("http://") || url.startsWith("https://");
     }
 }
