@@ -4,7 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.io.File;
+import javax.annotation.PostConstruct;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,14 +37,19 @@ public class VideoFileScanner {
             "(?i)\\b(1080p|720p|2160p|4k|x264|x265|h264|hevc|bluray|bdrip|dvdrip|webrip|web[- ]?dl|hdr|10bit|aac|flac)\\b"
     );
 
-    @Value("${video.scan.similarity.overlap-threshold:0.85}")
+    @Value("${video.scan.similarity.overlap-threshold:0.95}")
     private double overlapThreshold;
 
-    @Value("${video.scan.similarity.lcs-threshold:0.7}")
+    @Value("${video.scan.similarity.lcs-threshold:0.8}")
     private double lcsThreshold;
 
-    @Value("${video.scan.similarity.max-length-diff:0.3}")
+    @Value("${video.scan.similarity.max-length-diff:0.2}")
     private double maxLengthDiffRatio;
+
+    @Value("${video.scan.similarity.separate-tags:ova,oad,sp,special,剧场版,特别篇,特典}")
+    private String separateTagConfig;
+
+    private Set<String> separateTags = new HashSet<>();
 
     /**
      * 集数匹配模式（如：01, 02, 第1集, EP01等）
@@ -52,6 +57,11 @@ public class VideoFileScanner {
     private static final Pattern EPISODE_PATTERN = Pattern.compile(
             "(?:第?([0-9]+)[集话话]|EP([0-9]+)|([0-9]{2,})|E([0-9]+))", Pattern.CASE_INSENSITIVE
     );
+
+    @PostConstruct
+    private void initSeparateTags() {
+        separateTags = parseSeparateTags(separateTagConfig);
+    }
 
     /**
      * 扫描文件夹中的所有视频文件
@@ -300,6 +310,15 @@ public class VideoFileScanner {
         public void setEpisodeNumber(String episodeNumber) { this.episodeNumber = episodeNumber; }
     }
     private boolean isSimilarTitlePrecise(String title1, String title2) {
+        if (!separateTags.isEmpty()) {
+            Set<String> tags1 = extractSeparateTags(title1);
+            Set<String> tags2 = extractSeparateTags(title2);
+            if (!tags1.isEmpty() || !tags2.isEmpty()) {
+                if (!tags1.equals(tags2)) {
+                    return false;
+                }
+            }
+        }
         String normalized1 = normalizeTitleForSimilarity(title1);
         String normalized2 = normalizeTitleForSimilarity(title2);
         if (normalized1.isEmpty() || normalized2.isEmpty()) {
@@ -327,6 +346,69 @@ public class VideoFileScanner {
         double overlapRatio = calculateOverlap(tokens1, tokens2);
         double lcsRatio = calculateLcsRatio(normalized1, normalized2);
         return overlapRatio >= overlapThreshold && lcsRatio >= lcsThreshold;
+    }
+
+    private Set<String> extractSeparateTags(String title) {
+        if (title == null || title.isEmpty()) {
+            return Collections.emptySet();
+        }
+        String lower = title.toLowerCase();
+        Set<String> tags = new HashSet<>();
+        for (String tag : separateTags) {
+            if (tag.isEmpty()) {
+                continue;
+            }
+            if (lower.contains(tag)) {
+                tags.add(tag);
+            }
+        }
+        return tags;
+    }
+
+    public boolean hasMixedSeparateTags(List<VideoFileInfo> files) {
+        if (files == null || files.isEmpty() || separateTags.isEmpty()) {
+            return false;
+        }
+        return groupBySeparateTags(files).size() > 1;
+    }
+
+    public Map<String, List<VideoFileInfo>> groupBySeparateTags(List<VideoFileInfo> files) {
+        Map<String, List<VideoFileInfo>> groups = new HashMap<>();
+        if (files == null || files.isEmpty() || separateTags.isEmpty()) {
+            groups.put("", files == null ? Collections.emptyList() : files);
+            return groups;
+        }
+        for (VideoFileInfo file : files) {
+            String title = file != null ? file.getTitle() : null;
+            Set<String> tags = extractSeparateTags(title);
+            String key = buildTagKey(tags);
+            groups.computeIfAbsent(key, k -> new ArrayList<>()).add(file);
+        }
+        return groups;
+    }
+
+    private String buildTagKey(Set<String> tags) {
+        if (tags == null || tags.isEmpty()) {
+            return "";
+        }
+        List<String> sorted = new ArrayList<>(tags);
+        Collections.sort(sorted);
+        return String.join("+", sorted);
+    }
+
+    private Set<String> parseSeparateTags(String config) {
+        if (config == null || config.trim().isEmpty()) {
+            return Collections.emptySet();
+        }
+        Set<String> tags = new HashSet<>();
+        String[] parts = config.split(",");
+        for (String part : parts) {
+            String tag = part.trim().toLowerCase();
+            if (!tag.isEmpty()) {
+                tags.add(tag);
+            }
+        }
+        return tags;
     }
 
     private String normalizeTitleForSimilarity(String title) {

@@ -131,6 +131,23 @@ file:
     path: ./uploads  # 文件上传路径（本地存储）
 ```
 
+#### 视频扫描相似度配置
+
+用于控制同一文件夹内视频标题相似度的判定阈值，值越高越严格：
+
+```yaml
+video:
+  scan:
+    similarity:
+      overlap-threshold: 0.97  # 标题字符重叠率阈值
+      lcs-threshold: 0.82      # 最长公共子序列阈值
+      max-length-diff: 0.2     # 标题长度差异容忍度
+      separate-tags: ova,oad,sp,special,剧场版,特别篇,特典  # 标签不一致时强制分开合集
+    collection:
+      episode-hit-rate: 0.7    # 判定合集的集数命中率
+      title-match-rate: 0.7    # 判定合集的标题一致性命中率
+```
+
 #### Redis配置（可选）
 
 ```yaml

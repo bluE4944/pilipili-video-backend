@@ -60,6 +60,8 @@ public class SecurityConfig {
                 .antMatchers("/ws/**").permitAll()
                 // Druid监控页面（仅管理员可访问）
                 .antMatchers("/druid/**").hasRole(Role.ROLE_ADMIN.getCode())
+                // 管理员接口
+                .antMatchers("/api/admin/**").hasRole(Role.ROLE_ADMIN.getCode())
                 // 用户相关接口需要USER角色
                 .antMatchers("/api/user/**").hasAnyRole(Role.ROLE_USER.getCode(), Role.ROLE_MANAGE.getCode(), Role.ROLE_ADMIN.getCode())
                 // 视频上传、修改、删除需要USER角色

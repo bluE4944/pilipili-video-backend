@@ -52,6 +52,24 @@ public class VideoScanService {
     private final VideoRepository videoRepository;
     private final LocalFolderConfigService localFolderConfigService;
 
+    private static class ScanCount {
+        private final int collectionCount;
+        private final int singleCount;
+
+        private ScanCount(int collectionCount, int singleCount) {
+            this.collectionCount = collectionCount;
+            this.singleCount = singleCount;
+        }
+
+        private int getCollectionCount() {
+            return collectionCount;
+        }
+
+        private int getSingleCount() {
+            return singleCount;
+        }
+    }
+
     /**
      * 扫描文件夹并创建合集
      */
@@ -81,27 +99,21 @@ public class VideoScanService {
                 String folderName = getFolderName(folderPath);
                 List<VideoFileScanner.VideoFileInfo> files = entry.getValue();
 
-                if (isCollectionFolder(files, folderName)) {
-                    String collectionTitle = resolveCollectionTitle(files, folderName);
-                    createCollection(collectionTitle, files, config.getFolderPath(), user);
-                    collectionCount++;
+                Map<String, List<VideoFileScanner.VideoFileInfo>> tagGroups = videoFileScanner.groupBySeparateTags(files);
+                if (tagGroups.size() > 1) {
+                    for (Map.Entry<String, List<VideoFileScanner.VideoFileInfo>> tagEntry : tagGroups.entrySet()) {
+                        String tagKey = tagEntry.getKey();
+                        String taggedFolderName = applyTagSuffix(folderName, tagKey);
+                        ScanCount count = processFolderGroup(tagEntry.getValue(), taggedFolderName, folderPath, user);
+                        collectionCount += count.getCollectionCount();
+                        singleCount += count.getSingleCount();
+                    }
                     continue;
                 }
 
-                Map<String, List<VideoFileScanner.VideoFileInfo>> groups = videoFileScanner.groupSimilarFiles(files);
-                for (Map.Entry<String, List<VideoFileScanner.VideoFileInfo>> groupEntry : groups.entrySet()) {
-                    createCollection(groupEntry.getKey(), groupEntry.getValue(), config.getFolderPath(), user);
-                    collectionCount++;
-                }
-
-                List<VideoFileScanner.VideoFileInfo> singleFiles = files.stream()
-                        .filter(file -> groups.values().stream()
-                                .noneMatch(group -> group.contains(file)))
-                        .collect(Collectors.toList());
-                for (VideoFileScanner.VideoFileInfo file : singleFiles) {
-                    createStandaloneVideo(file, user);
-                    singleCount++;
-                }
+                ScanCount count = processFolderGroup(files, folderName, folderPath, user);
+                collectionCount += count.getCollectionCount();
+                singleCount += count.getSingleCount();
             }
             log.info("扫描分组完成: collectionCount={}, singleVideoCount={}", collectionCount, singleCount);
 
@@ -289,6 +301,56 @@ public class VideoScanService {
         return videoCollectionRepository.getOne(wrapper);
     }
 
+    private ScanCount processFolderGroup(List<VideoFileScanner.VideoFileInfo> files, String folderName, String folderPath, User user) {
+        int collectionCount = 0;
+        int singleCount = 0;
+        if (isCollectionFolder(files, folderName)) {
+            String collectionTitle = resolveCollectionTitle(files, folderName);
+            createCollection(collectionTitle, files, folderPath, user);
+            collectionCount++;
+            return new ScanCount(collectionCount, singleCount);
+        }
+
+        Map<String, List<VideoFileScanner.VideoFileInfo>> groups = videoFileScanner.groupSimilarFiles(files);
+        for (Map.Entry<String, List<VideoFileScanner.VideoFileInfo>> groupEntry : groups.entrySet()) {
+            String groupTitle = resolveGroupTitle(groupEntry.getValue(), groupEntry.getKey());
+            createCollection(groupTitle, groupEntry.getValue(), folderPath, user);
+            collectionCount++;
+        }
+
+        List<VideoFileScanner.VideoFileInfo> singleFiles = files.stream()
+                .filter(file -> groups.values().stream()
+                        .noneMatch(group -> group.contains(file)))
+                .collect(Collectors.toList());
+        for (VideoFileScanner.VideoFileInfo file : singleFiles) {
+            createStandaloneVideo(file, user);
+            singleCount++;
+        }
+        return new ScanCount(collectionCount, singleCount);
+    }
+
+    private String applyTagSuffix(String baseName, String tagKey) {
+        if (tagKey == null || tagKey.trim().isEmpty()) {
+            return baseName;
+        }
+        String suffix = formatTagSuffix(tagKey);
+        if (baseName == null || baseName.trim().isEmpty()) {
+            return suffix;
+        }
+        return baseName.trim() + " " + suffix;
+    }
+
+    private String formatTagSuffix(String tagKey) {
+        if (tagKey == null || tagKey.trim().isEmpty()) {
+            return "";
+        }
+        String trimmed = tagKey.trim();
+        if (trimmed.matches("[a-z0-9\\+]+")) {
+            return trimmed.toUpperCase();
+        }
+        return trimmed;
+    }
+
     private Video getOrCreateVideo(VideoFileScanner.VideoFileInfo file, User user) {
         QueryWrapper<Video> wrapper = new QueryWrapper<>();
         wrapper.eq("video_url", file.getFilePath());
@@ -370,13 +432,26 @@ public class VideoScanService {
     }
 
     private String buildVideoTitle(VideoFileScanner.VideoFileInfo file) {
-        if (file.getEpisodeNumber() != null && file.getTitle() != null && !file.getTitle().isEmpty()) {
-            return file.getTitle() + " 第" + file.getEpisodeNumber() + "集";
+        if (file == null) {
+            return "未命名视频";
         }
-        if (file.getTitle() != null && !file.getTitle().isEmpty()) {
-            return file.getTitle();
+        String fileName = file.getFileName();
+        String originalName = stripExtension(fileName);
+        if (originalName != null && !originalName.trim().isEmpty()) {
+            return originalName.trim();
         }
-        return file.getFileName();
+        if (file.getTitle() != null && !file.getTitle().trim().isEmpty()) {
+            return file.getTitle().trim();
+        }
+        return fileName == null || fileName.trim().isEmpty() ? "未命名视频" : fileName.trim();
+    }
+
+    private String stripExtension(String fileName) {
+        if (fileName == null) {
+            return null;
+        }
+        int lastDot = fileName.lastIndexOf('.');
+        return lastDot > 0 ? fileName.substring(0, lastDot) : fileName;
     }
     private Map<String, List<VideoFileScanner.VideoFileInfo>> groupByParentFolder(List<VideoFileScanner.VideoFileInfo> files) {
         Map<String, List<VideoFileScanner.VideoFileInfo>> map = new HashMap<>();
@@ -415,6 +490,9 @@ public class VideoScanService {
 
     private boolean isCollectionFolder(List<VideoFileScanner.VideoFileInfo> files, String folderName) {
         if (files == null || files.size() < 2) {
+            return false;
+        }
+        if (videoFileScanner.hasMixedSeparateTags(files)) {
             return false;
         }
         int episodeCount = 0;
@@ -486,6 +564,19 @@ public class VideoScanService {
             return bestTitle;
         }
         return files.isEmpty() ? "未命名合集" : files.get(0).getFileName();
+    }
+
+    private String resolveGroupTitle(List<VideoFileScanner.VideoFileInfo> files, String fallbackKey) {
+        if (files != null && !files.isEmpty()) {
+            VideoFileScanner.VideoFileInfo first = files.get(0);
+            if (first.getTitle() != null && !first.getTitle().trim().isEmpty()) {
+                return first.getTitle().trim();
+            }
+            if (first.getFileName() != null && !first.getFileName().trim().isEmpty()) {
+                return first.getFileName().trim();
+            }
+        }
+        return fallbackKey == null ? "未命名合集" : fallbackKey;
     }
 
     private String normalizeTitle(String title) {

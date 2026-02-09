@@ -128,9 +128,16 @@ video:
     ffmpeg-path: D:\Program Files\ffmpeg-8.0.1-full_build\bin\ffmpeg.exe
   scan:
     similarity:
-      overlap-threshold: 0.85
-      lcs-threshold: 0.7
-      max-length-diff: 0.3
+      # 标题相似度（更严格）：字符重叠率阈值，越大越严格
+      overlap-threshold: 0.97
+      # 标题相似度（更严格）：最长公共子序列阈值，越大越严格
+      lcs-threshold: 0.82
+      # 标题长度差异容忍度，越小越严格
+      max-length-diff: 0.2
+      # 这些标签出现不一致时，将强制分开成不同合集（支持英文/中文，逗号分隔）
+      separate-tags: ova,oad,sp,special,剧场版,特别篇,特典
     collection:
+      # 单文件夹内是否判定为合集的集数命中率
       episode-hit-rate: 0.7
+      # 单文件夹内标题一致性命中率
       title-match-rate: 0.7
