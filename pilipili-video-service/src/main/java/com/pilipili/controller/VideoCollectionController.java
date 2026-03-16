@@ -2,11 +2,13 @@ package com.pilipili.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.pilipili.entity.Video;
 import com.pilipili.entity.VideoCollection;
 import com.pilipili.entity.VideoEpisode;
 import com.pilipili.entity.out.Result;
 import com.pilipili.repository.VideoCollectionRepository;
 import com.pilipili.repository.VideoEpisodeRepository;
+import com.pilipili.repository.VideoRepository;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +17,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 视频合集控制器
@@ -31,6 +37,7 @@ public class VideoCollectionController {
 
     private final VideoCollectionRepository videoCollectionRepository;
     private final VideoEpisodeRepository videoEpisodeRepository;
+    private final VideoRepository videoRepository;
 
     /**
      * 分页查询合集
@@ -50,6 +57,7 @@ public class VideoCollectionController {
         wrapper.orderByDesc("create_time");
         Page<VideoCollection> result = videoCollectionRepository.page(page, wrapper);
         if (result.getRecords() != null) {
+            fillCollectionPlayCounts(result.getRecords());
             for (VideoCollection collection : result.getRecords()) {
                 normalizeCollectionCoverUrl(collection);
             }
@@ -64,6 +72,7 @@ public class VideoCollectionController {
     @ApiOperation("根据ID获取合集详情")
     public Result<VideoCollection> getCollectionById(@PathVariable Long collectionId) {
         VideoCollection collection = videoCollectionRepository.getById(collectionId);
+        fillCollectionPlayCount(collection);
         normalizeCollectionCoverUrl(collection);
         return Result.build(collection);
     }
@@ -123,5 +132,76 @@ public class VideoCollectionController {
 
     private boolean isRemoteUrl(String url) {
         return url.startsWith("http://") || url.startsWith("https://");
+    }
+
+    private void fillCollectionPlayCount(VideoCollection collection) {
+        if (collection == null || collection.getId() == null) {
+            return;
+        }
+        fillCollectionPlayCounts(java.util.Collections.singletonList(collection));
+    }
+
+    private void fillCollectionPlayCounts(List<VideoCollection> collections) {
+        if (collections == null || collections.isEmpty()) {
+            return;
+        }
+        List<Long> collectionIds = collections.stream()
+                .map(VideoCollection::getId)
+                .filter(id -> id != null)
+                .distinct()
+                .collect(Collectors.toList());
+        if (collectionIds.isEmpty()) {
+            return;
+        }
+
+        List<VideoEpisode> episodes = videoEpisodeRepository.list(
+                new QueryWrapper<VideoEpisode>().in("collection_id", collectionIds)
+        );
+        if (episodes == null || episodes.isEmpty()) {
+            for (VideoCollection collection : collections) {
+                collection.setPlayCount(0L);
+                collection.setLikeCount(0L);
+                collection.setCollectCount(0L);
+            }
+            return;
+        }
+
+        Set<Long> videoIds = episodes.stream()
+                .map(VideoEpisode::getVideoId)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+        Map<Long, Video> videoMap = videoIds.isEmpty()
+                ? java.util.Collections.emptyMap()
+                : videoRepository.listByIds(videoIds).stream()
+                .filter(video -> video.getId() != null)
+                .collect(Collectors.toMap(Video::getId, video -> video, (a, b) -> a));
+
+        Map<Long, Long> collectionPlayMap = new HashMap<>();
+        Map<Long, Long> collectionLikeMap = new HashMap<>();
+        Map<Long, Long> collectionCollectMap = new HashMap<>();
+        for (VideoEpisode episode : episodes) {
+            Long collectionId = episode.getCollectionId();
+            Long videoId = episode.getVideoId();
+            if (collectionId == null || videoId == null) {
+                continue;
+            }
+            Video video = videoMap.get(videoId);
+            Long playCount = video != null && video.getPlayCount() != null ? video.getPlayCount() : 0L;
+            Long likeCount = video != null && video.getLikeCount() != null ? video.getLikeCount() : 0L;
+            Long collectCount = video != null && video.getCollectCount() != null ? video.getCollectCount() : 0L;
+            collectionPlayMap.merge(collectionId, playCount, Long::sum);
+            collectionLikeMap.merge(collectionId, likeCount, Long::sum);
+            collectionCollectMap.merge(collectionId, collectCount, Long::sum);
+        }
+
+        for (VideoCollection collection : collections) {
+            Long id = collection.getId();
+            if (id == null) {
+                continue;
+            }
+            collection.setPlayCount(collectionPlayMap.getOrDefault(id, 0L));
+            collection.setLikeCount(collectionLikeMap.getOrDefault(id, 0L));
+            collection.setCollectCount(collectionCollectMap.getOrDefault(id, 0L));
+        }
     }
 }

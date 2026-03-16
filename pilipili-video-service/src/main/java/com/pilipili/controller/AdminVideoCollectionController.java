@@ -89,6 +89,33 @@ public class AdminVideoCollectionController {
         return Result.build(collection);
     }
 
+    @PostMapping
+    @ApiOperation("创建合集")
+    public Result<VideoCollection> createCollection(@RequestBody VideoCollection collection) {
+        if (collection == null || !notBlank(collection.getTitle())) {
+            throw new BusinessException(Status.PARAM_ERROR, "合集标题不能为空");
+        }
+        VideoCollection entity = new VideoCollection();
+        entity.setTitle(collection.getTitle().trim());
+        entity.setDescription(collection.getDescription());
+        entity.setCoverUrl(collection.getCoverUrl());
+        entity.setSourceFolderPath(collection.getSourceFolderPath());
+        entity.setVideoCount(collection.getVideoCount() != null ? collection.getVideoCount() : 0);
+        entity.setCollectionType(collection.getCollectionType() != null ? collection.getCollectionType() : 2);
+        entity.setEnabled(collection.getEnabled() != null ? collection.getEnabled() : 1);
+        User admin = getCurrentUser();
+        Date now = new Date();
+        entity.setCreateId(admin.getId());
+        entity.setCreateName(admin.getUsername());
+        entity.setCreateTime(now);
+        entity.setUpdateId(admin.getId());
+        entity.setUpdateName(admin.getUsername());
+        entity.setUpdateTime(now);
+        videoCollectionRepository.save(entity);
+        normalizeCollectionCoverUrl(entity);
+        return Result.build(entity);
+    }
+
     @PutMapping("/{collectionId}")
     @ApiOperation("更新合集信息")
     public Result<VideoCollection> updateCollection(

@@ -207,6 +207,65 @@ CREATE TABLE IF NOT EXISTS `t_system_config` (
   UNIQUE KEY `uk_config_key` (`config_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统配置表';
 
+-- 数据字典表
+CREATE TABLE IF NOT EXISTS `t_sys_dict` (
+  `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `dict_code` VARCHAR(50) NOT NULL COMMENT '字典编码',
+  `dict_name` VARCHAR(100) NOT NULL COMMENT '字典名称',
+  `description` VARCHAR(500) DEFAULT NULL COMMENT '描述',
+  `enabled` INT(1) DEFAULT 1 COMMENT '是否启用：0-禁用，1-启用',
+  `sort_order` INT(11) DEFAULT 0 COMMENT '排序序号',
+  `create_id` BIGINT(20) DEFAULT NULL COMMENT '创建者ID',
+  `create_name` VARCHAR(50) DEFAULT NULL COMMENT '创建者名',
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_id` BIGINT(20) DEFAULT NULL COMMENT '更新者ID',
+  `update_name` VARCHAR(50) DEFAULT NULL COMMENT '更新者名',
+  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `logic_del` INT(1) DEFAULT 0 COMMENT '逻辑删除：0-未删除，1-已删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_dict_code` (`dict_code`),
+  KEY `idx_enabled` (`enabled`),
+  KEY `idx_sort_order` (`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据字典表';
+
+-- 数据字典项表
+CREATE TABLE IF NOT EXISTS `t_sys_dict_item` (
+  `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `dict_code` VARCHAR(50) NOT NULL COMMENT '字典编码',
+  `item_value` VARCHAR(50) NOT NULL COMMENT '字典项值',
+  `item_label` VARCHAR(100) NOT NULL COMMENT '字典项名称',
+  `sort_order` INT(11) DEFAULT 0 COMMENT '排序序号',
+  `enabled` INT(1) DEFAULT 1 COMMENT '是否启用：0-禁用，1-启用',
+  `remark` VARCHAR(500) DEFAULT NULL COMMENT '备注',
+  `create_id` BIGINT(20) DEFAULT NULL COMMENT '创建者ID',
+  `create_name` VARCHAR(50) DEFAULT NULL COMMENT '创建者名',
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_id` BIGINT(20) DEFAULT NULL COMMENT '更新者ID',
+  `update_name` VARCHAR(50) DEFAULT NULL COMMENT '更新者名',
+  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `logic_del` INT(1) DEFAULT 0 COMMENT '逻辑删除：0-未删除，1-已删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_dict_item` (`dict_code`, `item_value`),
+  KEY `idx_dict_code` (`dict_code`),
+  KEY `idx_enabled` (`enabled`),
+  KEY `idx_sort_order` (`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据字典项表';
+
+-- 默认字典数据
+INSERT IGNORE INTO `t_sys_dict` (`dict_code`, `dict_name`, `description`, `enabled`, `sort_order`, `create_time`, `update_time`, `logic_del`)
+VALUES
+('gender', '性别', '用户性别字典', 1, 0, NOW(), NOW(), 0),
+('role', '角色', '系统角色字典', 1, 1, NOW(), NOW(), 0);
+
+INSERT IGNORE INTO `t_sys_dict_item` (`dict_code`, `item_value`, `item_label`, `sort_order`, `enabled`, `remark`, `create_time`, `update_time`, `logic_del`)
+VALUES
+('gender', 'male', '男', 1, 1, NULL, NOW(), NOW(), 0),
+('gender', 'female', '女', 2, 1, NULL, NOW(), NOW(), 0),
+('gender', 'unknown', '未知', 3, 1, NULL, NOW(), NOW(), 0),
+('role', 'user', '用户', 1, 1, NULL, NOW(), NOW(), 0),
+('role', 'manage', '管理员', 2, 1, NULL, NOW(), NOW(), 0),
+('role', 'admin', '超级管理员', 3, 1, NULL, NOW(), NOW(), 0);
+
 -- 本地文件夹配置表
 CREATE TABLE IF NOT EXISTS `t_local_folder_config` (
   `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',

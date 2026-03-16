@@ -5,10 +5,12 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pilipili.entity.User;
 import com.pilipili.entity.Video;
 import com.pilipili.entity.VideoCollection;
+import com.pilipili.entity.VideoEpisode;
 import com.pilipili.entity.in.VideoCondition;
 import com.pilipili.entity.out.VideoListItem;
 import com.pilipili.exception.BusinessException;
 import com.pilipili.repository.VideoCollectionRepository;
+import com.pilipili.repository.VideoEpisodeRepository;
 import com.pilipili.repository.VideoRepository;
 import com.pilipili.utils.FileUploadUtil;
 import com.pilipili.utils.VideoCoverUtil;
@@ -25,6 +27,10 @@ import java.util.Date;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -49,6 +55,7 @@ public class VideoService {
 
     private final VideoRepository videoRepository;
     private final VideoCollectionRepository videoCollectionRepository;
+    private final VideoEpisodeRepository videoEpisodeRepository;
     private final StorageService storageService;
 
     /**
@@ -274,6 +281,11 @@ public class VideoService {
         Page<VideoListItem> page = new Page<>(pageNum, pageSize);
         page.setTotal(collectionPage.getTotal() + videoPage.getTotal());
         page.setRecords(pageRecords);
+        List<VideoCollection> pageCollections = pageRecords.stream()
+                .map(VideoListItem::getCollection)
+                .filter(item -> item != null && item.getId() != null)
+                .collect(Collectors.toList());
+        fillCollectionPlayCounts(pageCollections);
         for (VideoListItem item : pageRecords) {
             normalizeListItemCoverUrl(item);
         }
@@ -343,12 +355,19 @@ public class VideoService {
      * 增加播放量
      */
     @Transactional(rollbackFor = Exception.class)
-    public void incrementPlayCount(Long videoId) {
+    public Long incrementPlayCount(Long videoId) {
         Video video = videoRepository.getById(videoId);
-        if (video != null) {
-            video.setPlayCount(video.getPlayCount() + 1);
-            videoRepository.updateById(video);
+        if (video == null) {
+            throw new BusinessException(Status.DATA_NOT_FOUNT, "视频不存在");
         }
+        Long current = video.getPlayCount();
+        if (current == null) {
+            current = 0L;
+        }
+        Long next = current + 1;
+        video.setPlayCount(next);
+        videoRepository.updateById(video);
+        return next;
     }
 
     private String generateDefaultCover(String videoUrl) {
@@ -368,6 +387,70 @@ public class VideoService {
         }
         if (item.getCollection() != null) {
             normalizeCollectionCoverUrl(item.getCollection());
+        }
+    }
+
+    private void fillCollectionPlayCounts(List<VideoCollection> collections) {
+        if (collections == null || collections.isEmpty()) {
+            return;
+        }
+        List<Long> collectionIds = collections.stream()
+                .map(VideoCollection::getId)
+                .filter(id -> id != null)
+                .distinct()
+                .collect(Collectors.toList());
+        if (collectionIds.isEmpty()) {
+            return;
+        }
+
+        List<VideoEpisode> episodes = videoEpisodeRepository.list(
+                new QueryWrapper<VideoEpisode>().in("collection_id", collectionIds)
+        );
+        if (episodes == null || episodes.isEmpty()) {
+            for (VideoCollection collection : collections) {
+                collection.setPlayCount(0L);
+                collection.setLikeCount(0L);
+                collection.setCollectCount(0L);
+            }
+            return;
+        }
+
+        Set<Long> videoIds = episodes.stream()
+                .map(VideoEpisode::getVideoId)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+        Map<Long, Video> videoMap = videoIds.isEmpty()
+                ? Collections.emptyMap()
+                : videoRepository.listByIds(videoIds).stream()
+                .filter(video -> video.getId() != null)
+                .collect(Collectors.toMap(Video::getId, video -> video, (a, b) -> a));
+
+        Map<Long, Long> collectionPlayMap = new HashMap<>();
+        Map<Long, Long> collectionLikeMap = new HashMap<>();
+        Map<Long, Long> collectionCollectMap = new HashMap<>();
+        for (VideoEpisode episode : episodes) {
+            Long collectionId = episode.getCollectionId();
+            Long videoId = episode.getVideoId();
+            if (collectionId == null || videoId == null) {
+                continue;
+            }
+            Video video = videoMap.get(videoId);
+            Long playCount = video != null && video.getPlayCount() != null ? video.getPlayCount() : 0L;
+            Long likeCount = video != null && video.getLikeCount() != null ? video.getLikeCount() : 0L;
+            Long collectCount = video != null && video.getCollectCount() != null ? video.getCollectCount() : 0L;
+            collectionPlayMap.merge(collectionId, playCount, Long::sum);
+            collectionLikeMap.merge(collectionId, likeCount, Long::sum);
+            collectionCollectMap.merge(collectionId, collectCount, Long::sum);
+        }
+
+        for (VideoCollection collection : collections) {
+            Long id = collection.getId();
+            if (id == null) {
+                continue;
+            }
+            collection.setPlayCount(collectionPlayMap.getOrDefault(id, 0L));
+            collection.setLikeCount(collectionLikeMap.getOrDefault(id, 0L));
+            collection.setCollectCount(collectionCollectMap.getOrDefault(id, 0L));
         }
     }
 

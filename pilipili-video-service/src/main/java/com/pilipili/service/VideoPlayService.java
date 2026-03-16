@@ -21,6 +21,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.stream.Collectors;
@@ -244,6 +245,7 @@ public class VideoPlayService {
                 ? java.util.Collections.emptyMap()
                 : videoCollectionRepository.listByIds(collectionIds).stream()
                 .collect(Collectors.toMap(VideoCollection::getId, c -> c, (a, b) -> a));
+        fillCollectionPlayCounts(new ArrayList<>(collectionMap.values()));
 
         List<VideoPlayHistoryItem> items = new ArrayList<>();
         Set<Long> seenCollections = new HashSet<>();
@@ -289,6 +291,70 @@ public class VideoPlayService {
             items.add(item);
         }
         return items;
+    }
+
+    private void fillCollectionPlayCounts(List<VideoCollection> collections) {
+        if (collections == null || collections.isEmpty()) {
+            return;
+        }
+        List<Long> collectionIds = collections.stream()
+                .map(VideoCollection::getId)
+                .filter(id -> id != null)
+                .distinct()
+                .collect(Collectors.toList());
+        if (collectionIds.isEmpty()) {
+            return;
+        }
+
+        List<VideoEpisode> episodes = videoEpisodeRepository.list(
+                new QueryWrapper<VideoEpisode>().in("collection_id", collectionIds)
+        );
+        if (episodes == null || episodes.isEmpty()) {
+            for (VideoCollection collection : collections) {
+                collection.setPlayCount(0L);
+                collection.setLikeCount(0L);
+                collection.setCollectCount(0L);
+            }
+            return;
+        }
+
+        Set<Long> videoIds = episodes.stream()
+                .map(VideoEpisode::getVideoId)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+        Map<Long, Video> videoMap = videoIds.isEmpty()
+                ? java.util.Collections.emptyMap()
+                : videoRepository.listByIds(videoIds).stream()
+                .filter(video -> video.getId() != null)
+                .collect(Collectors.toMap(Video::getId, video -> video, (a, b) -> a));
+
+        Map<Long, Long> collectionPlayMap = new HashMap<>();
+        Map<Long, Long> collectionLikeMap = new HashMap<>();
+        Map<Long, Long> collectionCollectMap = new HashMap<>();
+        for (VideoEpisode episode : episodes) {
+            Long collectionId = episode.getCollectionId();
+            Long videoId = episode.getVideoId();
+            if (collectionId == null || videoId == null) {
+                continue;
+            }
+            Video video = videoMap.get(videoId);
+            Long playCount = video != null && video.getPlayCount() != null ? video.getPlayCount() : 0L;
+            Long likeCount = video != null && video.getLikeCount() != null ? video.getLikeCount() : 0L;
+            Long collectCount = video != null && video.getCollectCount() != null ? video.getCollectCount() : 0L;
+            collectionPlayMap.merge(collectionId, playCount, Long::sum);
+            collectionLikeMap.merge(collectionId, likeCount, Long::sum);
+            collectionCollectMap.merge(collectionId, collectCount, Long::sum);
+        }
+
+        for (VideoCollection collection : collections) {
+            Long id = collection.getId();
+            if (id == null) {
+                continue;
+            }
+            collection.setPlayCount(collectionPlayMap.getOrDefault(id, 0L));
+            collection.setLikeCount(collectionLikeMap.getOrDefault(id, 0L));
+            collection.setCollectCount(collectionCollectMap.getOrDefault(id, 0L));
+        }
     }
 
     private void normalizeVideoCoverUrl(Video video) {

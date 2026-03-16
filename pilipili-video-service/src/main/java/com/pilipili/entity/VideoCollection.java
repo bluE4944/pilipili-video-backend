@@ -1,5 +1,6 @@
 package com.pilipili.entity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
@@ -47,6 +48,27 @@ public class VideoCollection extends BaseEntity {
      */
     @ApiModelProperty("视频数量")
     private Integer videoCount;
+
+    /**
+     * 合集播放量（汇总）
+     */
+    @TableField(exist = false)
+    @ApiModelProperty("合集播放量（汇总）")
+    private Long playCount;
+
+    /**
+     * 合集点赞数（汇总）
+     */
+    @TableField(exist = false)
+    @ApiModelProperty("合集点赞数（汇总）")
+    private Long likeCount;
+
+    /**
+     * 合集收藏数（汇总）
+     */
+    @TableField(exist = false)
+    @ApiModelProperty("合集收藏数（汇总）")
+    private Long collectCount;
 
     /**
      * 合集类型：1-自动整合，2-手动创建

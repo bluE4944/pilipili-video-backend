@@ -2,7 +2,16 @@ package com.pilipili.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.pilipili.entity.Video;
+import com.pilipili.entity.VideoCollect;
+import com.pilipili.entity.VideoCollection;
+import com.pilipili.entity.VideoComment;
+import com.pilipili.entity.VideoLike;
 import com.pilipili.entity.VideoPlayHistory;
+import com.pilipili.entity.out.UserBehaviorStats;
+import com.pilipili.repository.VideoCollectRepository;
+import com.pilipili.repository.VideoCollectionRepository;
+import com.pilipili.repository.VideoCommentRepository;
+import com.pilipili.repository.VideoLikeRepository;
 import com.pilipili.repository.VideoPlayHistoryRepository;
 import com.pilipili.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -10,7 +19,20 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.time.DayOfWeek;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 视频统计服务类
@@ -25,6 +47,10 @@ public class VideoStatisticsService {
 
     private final VideoRepository videoRepository;
     private final VideoPlayHistoryRepository videoPlayHistoryRepository;
+    private final VideoLikeRepository videoLikeRepository;
+    private final VideoCollectRepository videoCollectRepository;
+    private final VideoCommentRepository videoCommentRepository;
+    private final VideoCollectionRepository videoCollectionRepository;
 
     /**
      * 获取视频播放量统计
@@ -47,7 +73,7 @@ public class VideoStatisticsService {
         wrapper.eq("video_id", videoId);
         wrapper.gt("play_duration", 0);
         List<VideoPlayHistory> histories = videoPlayHistoryRepository.list(wrapper);
-        
+
         if (!histories.isEmpty()) {
             double avgDuration = histories.stream()
                     .mapToInt(VideoPlayHistory::getPlayDuration)
@@ -64,31 +90,125 @@ public class VideoStatisticsService {
     /**
      * 获取用户行为分析
      */
-    public Map<String, Object> getUserBehaviorAnalysis(Long userId) {
-        Map<String, Object> analysis = new HashMap<>();
+    public UserBehaviorStats getUserBehaviorAnalysis(Long userId) {
+        UserBehaviorStats stats = new UserBehaviorStats();
 
-        // 总观看时长
         QueryWrapper<VideoPlayHistory> wrapper = new QueryWrapper<>();
         wrapper.eq("user_id", userId);
         List<VideoPlayHistory> histories = videoPlayHistoryRepository.list(wrapper);
-        
+
         int totalWatchTime = histories.stream()
-                .mapToInt(VideoPlayHistory::getPlayDuration)
+                .mapToInt(history -> history.getPlayDuration() == null ? 0 : history.getPlayDuration())
                 .sum();
-        analysis.put("totalWatchTime", totalWatchTime);
+        stats.setTotalWatchTime(totalWatchTime);
 
-        // 观看视频数
-        Set<Long> watchedVideoIds = new HashSet<>();
-        histories.forEach(h -> watchedVideoIds.add(h.getVideoId()));
-        analysis.put("watchedVideoCount", watchedVideoIds.size());
+        Set<Long> watchedVideoIds = histories.stream()
+                .map(VideoPlayHistory::getVideoId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        stats.setWatchedVideoCount(watchedVideoIds.size());
 
-        // 最近观看的视频
-        wrapper.orderByDesc("update_time");
-        wrapper.last("LIMIT 10");
-        List<VideoPlayHistory> recentHistories = videoPlayHistoryRepository.list(wrapper);
-        analysis.put("recentWatchedVideos", recentHistories);
+        long playCount = histories.size();
+        stats.setTotalPlayCount(playCount);
+        stats.setPlayCount(playCount);
 
-        return analysis;
+        ZoneId zoneId = ZoneId.systemDefault();
+        Instant startOfDay = LocalDate.now(zoneId).atStartOfDay(zoneId).toInstant();
+        Instant startOfWeek = LocalDate.now(zoneId)
+                .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                .atStartOfDay(zoneId)
+                .toInstant();
+        Instant startOfMonth = LocalDate.now(zoneId)
+                .withDayOfMonth(1)
+                .atStartOfDay(zoneId)
+                .toInstant();
+
+        long todayPlayCount = 0;
+        long weekPlayCount = 0;
+        long monthPlayCount = 0;
+        Date lastPlayTime = null;
+
+        for (VideoPlayHistory history : histories) {
+            Date time = history.getUpdateTime() != null ? history.getUpdateTime() : history.getCreateTime();
+            if (time == null) {
+                continue;
+            }
+            if (lastPlayTime == null || time.after(lastPlayTime)) {
+                lastPlayTime = time;
+            }
+            Instant instant = time.toInstant();
+            if (!instant.isBefore(startOfDay)) {
+                todayPlayCount++;
+            }
+            if (!instant.isBefore(startOfWeek)) {
+                weekPlayCount++;
+            }
+            if (!instant.isBefore(startOfMonth)) {
+                monthPlayCount++;
+            }
+        }
+
+        stats.setTodayPlayCount(todayPlayCount);
+        stats.setWeekPlayCount(weekPlayCount);
+        stats.setMonthPlayCount(monthPlayCount);
+        stats.setLastPlayTime(lastPlayTime);
+
+        QueryWrapper<VideoLike> likeWrapper = new QueryWrapper<>();
+        likeWrapper.eq("user_id", userId);
+        likeWrapper.eq("is_like", 1);
+        stats.setLikeCount(videoLikeRepository.count(likeWrapper));
+
+        QueryWrapper<VideoComment> commentWrapper = new QueryWrapper<>();
+        commentWrapper.eq("user_id", userId);
+        stats.setCommentCount(videoCommentRepository.count(commentWrapper));
+
+        QueryWrapper<VideoCollect> collectWrapper = new QueryWrapper<>();
+        collectWrapper.eq("user_id", userId);
+        stats.setCollectCount(videoCollectRepository.count(collectWrapper));
+
+        QueryWrapper<VideoCollection> collectionWrapper = new QueryWrapper<>();
+        collectionWrapper.eq("create_id", userId);
+        stats.setFavoriteCount(videoCollectionRepository.count(collectionWrapper));
+
+        QueryWrapper<VideoPlayHistory> recentWrapper = new QueryWrapper<>();
+        recentWrapper.eq("user_id", userId);
+        recentWrapper.orderByDesc("update_time");
+        recentWrapper.last("LIMIT 10");
+        List<VideoPlayHistory> recentHistories = videoPlayHistoryRepository.list(recentWrapper);
+
+        if (recentHistories == null || recentHistories.isEmpty()) {
+            stats.setRecentWatchedVideos(Collections.emptyList());
+        } else {
+            List<Long> recentVideoIds = recentHistories.stream()
+                    .map(VideoPlayHistory::getVideoId)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .collect(Collectors.toList());
+            Map<Long, String> titleMap = recentVideoIds.isEmpty()
+                    ? Collections.emptyMap()
+                    : videoRepository.listByIds(recentVideoIds).stream()
+                    .filter(video -> video.getId() != null)
+                    .collect(Collectors.toMap(
+                            Video::getId,
+                            video -> video.getTitle() == null ? String.valueOf(video.getId()) : video.getTitle(),
+                            (a, b) -> a
+                    ));
+
+            List<String> recentTitles = new ArrayList<>();
+            for (VideoPlayHistory history : recentHistories) {
+                Long videoId = history.getVideoId();
+                if (videoId == null) {
+                    continue;
+                }
+                String title = titleMap.get(videoId);
+                if (title != null && !title.isEmpty()) {
+                    recentTitles.add(title);
+                }
+            }
+            stats.setRecentWatchedVideos(recentTitles);
+        }
+
+        return stats;
     }
 
     /**
@@ -117,6 +237,7 @@ public class VideoStatisticsService {
         }
         return trend;
     }
+
     private void normalizeListCoverUrl(List<Video> videos) {
         if (videos == null) {
             return;

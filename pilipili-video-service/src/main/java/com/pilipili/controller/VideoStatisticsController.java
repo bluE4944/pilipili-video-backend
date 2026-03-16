@@ -3,6 +3,7 @@ package com.pilipili.controller;
 import com.pilipili.entity.User;
 import com.pilipili.entity.Video;
 import com.pilipili.entity.out.Result;
+import com.pilipili.entity.out.UserBehaviorStats;
 import com.pilipili.service.VideoStatisticsService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -54,12 +55,12 @@ public class VideoStatisticsController {
      */
     @GetMapping("/user/behavior")
     @ApiOperation("获取用户行为分析")
-    public Result<Map<String, Object>> getUserBehaviorAnalysis() {
+    public Result<UserBehaviorStats> getUserBehaviorAnalysis() {
         User user = getCurrentUser();
         if (user == null) {
             return Result.build(com.pilipili.utils.Status.UNAUTHORIZED, "用户未登录");
         }
-        Map<String, Object> analysis = videoStatisticsService.getUserBehaviorAnalysis(user.getId());
+        UserBehaviorStats analysis = videoStatisticsService.getUserBehaviorAnalysis(user.getId());
         return Result.build(analysis);
     }
 

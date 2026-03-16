@@ -4,6 +4,7 @@ import com.pilipili.entity.User;
 import com.pilipili.entity.VideoPlayHistory;
 import com.pilipili.entity.out.Result;
 import com.pilipili.entity.out.VideoPlayHistoryItem;
+import com.pilipili.service.VideoService;
 import com.pilipili.service.VideoPlayService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -32,6 +33,7 @@ import java.util.List;
 public class VideoPlayController {
 
     private final VideoPlayService videoPlayService;
+    private final VideoService videoService;
 
     private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -51,6 +53,17 @@ public class VideoPlayController {
             @ApiParam(value = "过期时间（秒）", example = "3600") @RequestParam(defaultValue = "3600") Long expireSeconds) {
         String playUrl = videoPlayService.getVideoPlayUrl(videoId, expireSeconds);
         return Result.build(playUrl);
+    }
+
+    /**
+     * 增加播放量
+     */
+    @PostMapping("/count/{videoId}")
+    @ApiOperation("增加播放量")
+    public Result<Long> incrementPlayCount(
+            @ApiParam(value = "视频ID", required = true, example = "1") @PathVariable Long videoId) {
+        Long playCount = videoService.incrementPlayCount(videoId);
+        return Result.build(playCount);
     }
 
     /**
