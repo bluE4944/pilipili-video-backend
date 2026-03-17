@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 
 /**
  * 视频流媒体控制器
@@ -59,10 +60,7 @@ public class VideoStreamController {
             return;
         }
 
-        String contentType = Files.probeContentType(filePath);
-        if (contentType == null) {
-            contentType = "application/octet-stream";
-        }
+        String contentType = resolveContentType(filePath);
 
         long fileLength = file.length();
         String range = request.getHeader("Range");
@@ -124,5 +122,29 @@ public class VideoStreamController {
         } catch (IOException e) {
             log.warn("视频流 Range 输出失败: videoId={}, range={}", videoId, range, e);
         }
+    }
+
+    private String resolveContentType(Path filePath) throws IOException {
+        String contentType = Files.probeContentType(filePath);
+        if (contentType != null && !"application/octet-stream".equalsIgnoreCase(contentType)) {
+            return contentType;
+        }
+        String fileName = filePath.getFileName() == null ? "" : filePath.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (fileName.endsWith(".mkv")) {
+            return "video/x-matroska";
+        }
+        if (fileName.endsWith(".mp4")) {
+            return "video/mp4";
+        }
+        if (fileName.endsWith(".webm")) {
+            return "video/webm";
+        }
+        if (fileName.endsWith(".mov")) {
+            return "video/quicktime";
+        }
+        if (fileName.endsWith(".ogg") || fileName.endsWith(".ogv")) {
+            return "video/ogg";
+        }
+        return "application/octet-stream";
     }
 }
