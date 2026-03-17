@@ -17,13 +17,21 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -47,6 +55,11 @@ public class VideoPlayService {
     @Value("${file.upload.path:./uploads}")
     private String uploadPath;
 
+    @Value("${video.transcode.ffmpeg-path:ffmpeg}")
+    private String ffmpegPath;
+
+    private final ConcurrentHashMap<Long, Object> hlsLocks = new ConcurrentHashMap<>();
+
     /**
      * 获取视频播放地址（带防盗链和时效控制）
      */
@@ -54,6 +67,10 @@ public class VideoPlayService {
         Video video = videoRepository.getById(videoId);
         if (video == null) {
             throw new RuntimeException("视频不存在");
+        }
+
+        if (shouldUseHls(video)) {
+            return "/api/video/stream/hls/" + videoId + "/index.m3u8";
         }
 
         long expireAt = expireSeconds != null ? (System.currentTimeMillis() / 1000 + expireSeconds) : 0L;
@@ -113,6 +130,134 @@ public class VideoPlayService {
             normalized = normalized.substring(1);
         }
         return Paths.get(uploadPath).resolve(normalized);
+    }
+
+    public Path prepareHlsStream(Long videoId) {
+        Video video = videoRepository.getById(videoId);
+        if (video == null) {
+            throw new RuntimeException("视频不存在");
+        }
+        if (!shouldUseHls(video)) {
+            throw new RuntimeException("当前视频无需 HLS 转码");
+        }
+
+        VideoStreamInfo streamInfo = getVideoStreamInfo(videoId);
+        Path sourcePath = streamInfo.getFilePath();
+        if (sourcePath == null || !Files.exists(sourcePath)) {
+            throw new RuntimeException("视频文件不存在");
+        }
+
+        Path outputDir = Paths.get(uploadPath).resolve("transcodes").resolve(String.valueOf(videoId));
+        Path playlistPath = outputDir.resolve("index.m3u8");
+        if (Files.exists(playlistPath)) {
+            return playlistPath;
+        }
+
+        Object lock = hlsLocks.computeIfAbsent(videoId, key -> new Object());
+        synchronized (lock) {
+            try {
+                if (Files.exists(playlistPath)) {
+                    return playlistPath;
+                }
+                Files.createDirectories(outputDir);
+                transcodeToHls(videoId, sourcePath, outputDir);
+                if (!Files.exists(playlistPath)) {
+                    throw new RuntimeException("HLS 转码失败，未生成播放列表");
+                }
+                return playlistPath;
+            } catch (IOException e) {
+                throw new RuntimeException("创建 HLS 转码目录失败", e);
+            } finally {
+                hlsLocks.remove(videoId, lock);
+            }
+        }
+    }
+
+    public Path getHlsOutputDir(Long videoId) {
+        return Paths.get(uploadPath).resolve("transcodes").resolve(String.valueOf(videoId));
+    }
+
+    private boolean shouldUseHls(Video video) {
+        if (video == null) {
+            return false;
+        }
+        String format = normalizeExtension(video.getFormat());
+        if (format.isEmpty()) {
+            VideoStreamInfo streamInfo = getVideoStreamInfo(video.getId());
+            if (streamInfo.getRemoteUrl() != null) {
+                return false;
+            }
+            if (streamInfo.getFilePath() != null && streamInfo.getFilePath().getFileName() != null) {
+                format = normalizeExtension(streamInfo.getFilePath().getFileName().toString());
+            }
+        }
+        return "mkv".equals(format);
+    }
+
+    private String normalizeExtension(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return "";
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        int queryIndex = normalized.indexOf('?');
+        if (queryIndex >= 0) {
+            normalized = normalized.substring(0, queryIndex);
+        }
+        int lastHashIndex = normalized.indexOf('#');
+        if (lastHashIndex >= 0) {
+            normalized = normalized.substring(0, lastHashIndex);
+        }
+        int lastDotIndex = normalized.lastIndexOf('.');
+        if (lastDotIndex >= 0 && lastDotIndex < normalized.length() - 1) {
+            normalized = normalized.substring(lastDotIndex + 1);
+        }
+        return normalized;
+    }
+
+    private void transcodeToHls(Long videoId, Path sourcePath, Path outputDir) throws IOException {
+        Path playlistPath = outputDir.resolve("index.m3u8");
+        Path segmentPattern = outputDir.resolve("segment_%03d.ts");
+        List<String> command = Arrays.asList(
+                (ffmpegPath == null || ffmpegPath.trim().isEmpty()) ? "ffmpeg" : ffmpegPath.trim(),
+                "-y",
+                "-i", sourcePath.toString(),
+                "-c:v", "libx264",
+                "-preset", "veryfast",
+                "-crf", "23",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-ac", "2",
+                "-f", "hls",
+                "-hls_time", "6",
+                "-hls_playlist_type", "vod",
+                "-hls_segment_filename", segmentPattern.toString(),
+                playlistPath.toString()
+        );
+
+        ProcessBuilder processBuilder = new ProcessBuilder(command);
+        processBuilder.redirectErrorStream(true);
+        Process process = processBuilder.start();
+        String output;
+        try (InputStream inputStream = process.getInputStream();
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int len;
+            while ((len = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, len);
+            }
+            output = new String(outputStream.toByteArray(), StandardCharsets.UTF_8);
+        }
+        try {
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                log.error("HLS 转码失败: videoId={}, exitCode={}, output={}", videoId, exitCode, output);
+                throw new RuntimeException("HLS 转码失败");
+            }
+            log.info("HLS 转码完成: videoId={}, outputDir={}", videoId, outputDir);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("HLS 转码被中断", e);
+        }
     }
 
     public static class VideoStreamInfo {

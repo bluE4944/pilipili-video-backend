@@ -124,6 +124,34 @@ public class VideoStreamController {
         }
     }
 
+    @GetMapping("/hls/{videoId}/index.m3u8")
+    @ApiOperation("HLS 播放列表")
+    public void streamHlsPlaylist(@PathVariable Long videoId, HttpServletResponse response) throws IOException {
+        Path playlistPath = videoPlayService.prepareHlsStream(videoId);
+        serveStaticFile(playlistPath, "application/vnd.apple.mpegurl", response);
+    }
+
+    @GetMapping("/hls/{videoId}/{fileName:.+}")
+    @ApiOperation("HLS 分片文件")
+    public void streamHlsSegment(
+            @PathVariable Long videoId,
+            @PathVariable String fileName,
+            HttpServletResponse response) throws IOException {
+        Path outputDir = videoPlayService.getHlsOutputDir(videoId).normalize();
+        Path targetPath = outputDir.resolve(fileName).normalize();
+        if (!targetPath.startsWith(outputDir)) {
+            response.sendError(HttpStatus.BAD_REQUEST.value(), "非法文件路径");
+            return;
+        }
+        if (!Files.exists(targetPath)) {
+            videoPlayService.prepareHlsStream(videoId);
+        }
+        String contentType = fileName.endsWith(".m3u8")
+                ? "application/vnd.apple.mpegurl"
+                : fileName.endsWith(".ts") ? "video/mp2t" : "application/octet-stream";
+        serveStaticFile(targetPath, contentType, response);
+    }
+
     private String resolveContentType(Path filePath) throws IOException {
         String contentType = Files.probeContentType(filePath);
         if (contentType != null && !"application/octet-stream".equalsIgnoreCase(contentType)) {
@@ -146,5 +174,18 @@ public class VideoStreamController {
             return "video/ogg";
         }
         return "application/octet-stream";
+    }
+
+    private void serveStaticFile(Path filePath, String contentType, HttpServletResponse response) throws IOException {
+        if (filePath == null || !Files.exists(filePath) || Files.isDirectory(filePath)) {
+            response.sendError(HttpStatus.NOT_FOUND.value(), "文件不存在");
+            return;
+        }
+        response.setStatus(HttpServletResponse.SC_OK);
+        response.setContentType(contentType);
+        response.setContentLengthLong(Files.size(filePath));
+        try (InputStream inputStream = Files.newInputStream(filePath)) {
+            StreamUtils.copy(inputStream, response.getOutputStream());
+        }
     }
 }
