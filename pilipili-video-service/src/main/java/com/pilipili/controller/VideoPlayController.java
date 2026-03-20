@@ -4,6 +4,7 @@ import com.pilipili.entity.User;
 import com.pilipili.entity.VideoPlayHistory;
 import com.pilipili.entity.out.Result;
 import com.pilipili.entity.out.VideoPlayHistoryItem;
+import com.pilipili.entity.out.VideoPlaySourceInfo;
 import com.pilipili.service.VideoService;
 import com.pilipili.service.VideoPlayService;
 import io.swagger.annotations.Api;
@@ -53,6 +54,18 @@ public class VideoPlayController {
             @ApiParam(value = "过期时间（秒）", example = "3600") @RequestParam(defaultValue = "3600") Long expireSeconds) {
         String playUrl = videoPlayService.getVideoPlayUrl(videoId, expireSeconds);
         return Result.build(playUrl);
+    }
+
+    /**
+     * 获取视频播放源信息
+     */
+    @GetMapping("/source/{videoId}")
+    @ApiOperation("获取视频播放源信息")
+    public Result<VideoPlaySourceInfo> getVideoPlaySourceInfo(
+            @ApiParam(value = "视频ID", required = true, example = "1") @PathVariable Long videoId,
+            @ApiParam(value = "过期时间（秒）", example = "3600") @RequestParam(defaultValue = "3600") Long expireSeconds) {
+        VideoPlaySourceInfo sourceInfo = videoPlayService.getVideoPlaySourceInfo(videoId, expireSeconds);
+        return Result.build(sourceInfo);
     }
 
     /**

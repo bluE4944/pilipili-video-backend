@@ -128,6 +128,7 @@ video:
     ffmpeg-path: D:\Program Files\ffmpeg-8.0.1-full_build\bin\ffmpeg.exe
   transcode:
     ffmpeg-path: D:\Program Files\ffmpeg-8.0.1-full_build\bin\ffmpeg.exe
+    ffprobe-path: D:\Program Files\ffmpeg-8.0.1-full_build\bin\ffprobe.exe
   scan:
     similarity:
       # 标题相似度（更严格）：字符重叠率阈值，越大越严格

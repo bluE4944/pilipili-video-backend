@@ -54,74 +54,17 @@ public class VideoStreamController {
             return;
         }
 
-        File file = filePath.toFile();
-        if (!file.exists() || !file.isFile()) {
-            response.sendError(HttpStatus.NOT_FOUND.value(), "视频文件不存在");
-            return;
-        }
+        streamLocalFile(filePath, request, response, resolveContentType(filePath), "videoId=" + videoId);
+    }
 
-        String contentType = resolveContentType(filePath);
-
-        long fileLength = file.length();
-        String range = request.getHeader("Range");
-        response.setHeader("Accept-Ranges", "bytes");
-        response.setContentType(contentType);
-
-        if (range == null || !range.startsWith("bytes=")) {
-            response.setStatus(HttpServletResponse.SC_OK);
-            response.setContentLengthLong(fileLength);
-            try (InputStream inputStream = Files.newInputStream(filePath)) {
-                StreamUtils.copy(inputStream, response.getOutputStream());
-            } catch (IOException e) {
-                log.warn("视频流输出失败: videoId={}", videoId, e);
-            }
-            return;
-        }
-
-        long start = 0;
-        long end = fileLength - 1;
-        String[] parts = range.replace("bytes=", "").split("-", 2);
-        try {
-            if (parts.length > 0 && !parts[0].isEmpty()) {
-                start = Long.parseLong(parts[0]);
-            }
-            if (parts.length > 1 && !parts[1].isEmpty()) {
-                end = Long.parseLong(parts[1]);
-            }
-        } catch (NumberFormatException e) {
-            response.setHeader("Content-Range", "bytes */" + fileLength);
-            response.sendError(HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE);
-            return;
-        }
-        if (end >= fileLength) {
-            end = fileLength - 1;
-        }
-        if (start > end || start < 0) {
-            response.setHeader("Content-Range", "bytes */" + fileLength);
-            response.sendError(HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE);
-            return;
-        }
-
-        long contentLength = end - start + 1;
-        response.setStatus(HttpServletResponse.SC_PARTIAL_CONTENT);
-        response.setHeader("Content-Range", "bytes " + start + "-" + end + "/" + fileLength);
-        response.setContentLengthLong(contentLength);
-
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            raf.seek(start);
-            byte[] buffer = new byte[8192];
-            long remaining = contentLength;
-            while (remaining > 0) {
-                int len = raf.read(buffer, 0, (int) Math.min(buffer.length, remaining));
-                if (len == -1) {
-                    break;
-                }
-                response.getOutputStream().write(buffer, 0, len);
-                remaining -= len;
-            }
-        } catch (IOException e) {
-            log.warn("视频流 Range 输出失败: videoId={}, range={}", videoId, range, e);
-        }
+    @GetMapping("/compatible/{videoId}.mp4")
+    @ApiOperation("兼容 MP4 流媒体播放（支持 Range）")
+    public void streamCompatibleVideo(
+            @PathVariable Long videoId,
+            HttpServletRequest request,
+            HttpServletResponse response) throws IOException {
+        Path filePath = videoPlayService.getCompatibleMp4Path(videoId);
+        streamLocalFile(filePath, request, response, "video/mp4", "compatibleVideoId=" + videoId);
     }
 
     @GetMapping("/hls/{videoId}/index.m3u8")
@@ -186,6 +129,80 @@ public class VideoStreamController {
         response.setContentLengthLong(Files.size(filePath));
         try (InputStream inputStream = Files.newInputStream(filePath)) {
             StreamUtils.copy(inputStream, response.getOutputStream());
+        }
+    }
+
+    private void streamLocalFile(
+            Path filePath,
+            HttpServletRequest request,
+            HttpServletResponse response,
+            String contentType,
+            String logKey) throws IOException {
+        File file = filePath.toFile();
+        if (!file.exists() || !file.isFile()) {
+            response.sendError(HttpStatus.NOT_FOUND.value(), "视频文件不存在");
+            return;
+        }
+
+        long fileLength = file.length();
+        String range = request.getHeader("Range");
+        response.setHeader("Accept-Ranges", "bytes");
+        response.setContentType(contentType);
+
+        if (range == null || !range.startsWith("bytes=")) {
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.setContentLengthLong(fileLength);
+            try (InputStream inputStream = Files.newInputStream(filePath)) {
+                StreamUtils.copy(inputStream, response.getOutputStream());
+            } catch (IOException e) {
+                log.warn("视频流输出失败: {}", logKey, e);
+            }
+            return;
+        }
+
+        long start = 0;
+        long end = fileLength - 1;
+        String[] parts = range.replace("bytes=", "").split("-", 2);
+        try {
+            if (parts.length > 0 && !parts[0].isEmpty()) {
+                start = Long.parseLong(parts[0]);
+            }
+            if (parts.length > 1 && !parts[1].isEmpty()) {
+                end = Long.parseLong(parts[1]);
+            }
+        } catch (NumberFormatException e) {
+            response.setHeader("Content-Range", "bytes */" + fileLength);
+            response.sendError(HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE);
+            return;
+        }
+        if (end >= fileLength) {
+            end = fileLength - 1;
+        }
+        if (start > end || start < 0) {
+            response.setHeader("Content-Range", "bytes */" + fileLength);
+            response.sendError(HttpServletResponse.SC_REQUESTED_RANGE_NOT_SATISFIABLE);
+            return;
+        }
+
+        long contentLength = end - start + 1;
+        response.setStatus(HttpServletResponse.SC_PARTIAL_CONTENT);
+        response.setHeader("Content-Range", "bytes " + start + "-" + end + "/" + fileLength);
+        response.setContentLengthLong(contentLength);
+
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+            raf.seek(start);
+            byte[] buffer = new byte[8192];
+            long remaining = contentLength;
+            while (remaining > 0) {
+                int len = raf.read(buffer, 0, (int) Math.min(buffer.length, remaining));
+                if (len == -1) {
+                    break;
+                }
+                response.getOutputStream().write(buffer, 0, len);
+                remaining -= len;
+            }
+        } catch (IOException e) {
+            log.warn("视频流 Range 输出失败: {}, range={}", logKey, range, e);
         }
     }
 }
