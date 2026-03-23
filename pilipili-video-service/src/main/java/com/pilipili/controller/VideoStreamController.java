@@ -63,15 +63,13 @@ public class VideoStreamController {
             @PathVariable Long videoId,
             HttpServletRequest request,
             HttpServletResponse response) throws IOException {
-        Path filePath = videoPlayService.getCompatibleMp4Path(videoId);
-        streamLocalFile(filePath, request, response, "video/mp4", "compatibleVideoId=" + videoId);
+        response.sendError(HttpStatus.GONE.value(), "服务端兼容转码已禁用，请使用最新版前端播放");
     }
 
     @GetMapping("/hls/{videoId}/index.m3u8")
     @ApiOperation("HLS 播放列表")
     public void streamHlsPlaylist(@PathVariable Long videoId, HttpServletResponse response) throws IOException {
-        Path playlistPath = videoPlayService.prepareHlsStream(videoId);
-        serveStaticFile(playlistPath, "application/vnd.apple.mpegurl", response);
+        response.sendError(HttpStatus.GONE.value(), "服务端 HLS 转码已禁用，请使用最新版前端播放");
     }
 
     @GetMapping("/hls/{videoId}/{fileName:.+}")
@@ -80,19 +78,7 @@ public class VideoStreamController {
             @PathVariable Long videoId,
             @PathVariable String fileName,
             HttpServletResponse response) throws IOException {
-        Path outputDir = videoPlayService.getHlsOutputDir(videoId).normalize();
-        Path targetPath = outputDir.resolve(fileName).normalize();
-        if (!targetPath.startsWith(outputDir)) {
-            response.sendError(HttpStatus.BAD_REQUEST.value(), "非法文件路径");
-            return;
-        }
-        if (!Files.exists(targetPath)) {
-            videoPlayService.prepareHlsStream(videoId);
-        }
-        String contentType = fileName.endsWith(".m3u8")
-                ? "application/vnd.apple.mpegurl"
-                : fileName.endsWith(".ts") ? "video/mp2t" : "application/octet-stream";
-        serveStaticFile(targetPath, contentType, response);
+        response.sendError(HttpStatus.GONE.value(), "服务端 HLS 转码已禁用，请使用最新版前端播放");
     }
 
     private String resolveContentType(Path filePath) throws IOException {

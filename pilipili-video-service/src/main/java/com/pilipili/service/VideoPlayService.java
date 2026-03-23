@@ -83,19 +83,6 @@ public class VideoPlayService {
         }
 
         VideoPlaySourceInfo sourceInfo = new VideoPlaySourceInfo();
-        if (shouldUseCompatibleProcessing(video)) {
-            CompatiblePlan plan = resolveCompatiblePlan(videoId);
-            if (plan.getOutputMode() == OutputMode.HLS) {
-                sourceInfo.setPlayUrl("/api/video/stream/hls/" + videoId + "/" + HLS_PLAYLIST_NAME);
-                sourceInfo.setSourceMode("hls");
-            } else {
-                sourceInfo.setPlayUrl("/api/video/stream/compatible/" + videoId + ".mp4");
-                sourceInfo.setSourceMode("compatible_mp4");
-            }
-            sourceInfo.setProcessMode(plan.getProcessMode().name().toLowerCase(Locale.ROOT));
-            sourceInfo.setBrowserFallbackAllowed(Boolean.TRUE);
-            return sourceInfo;
-        }
 
         long expireAt = expireSeconds != null ? (System.currentTimeMillis() / 1000 + expireSeconds) : 0L;
         if (expireAt > 0) {
@@ -105,7 +92,7 @@ public class VideoPlayService {
         }
         sourceInfo.setSourceMode("direct");
         sourceInfo.setProcessMode("none");
-        sourceInfo.setBrowserFallbackAllowed(Boolean.FALSE);
+        sourceInfo.setBrowserFallbackAllowed(shouldUseCompatibleProcessing(video));
         return sourceInfo;
     }
 
