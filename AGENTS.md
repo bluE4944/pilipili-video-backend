@@ -5,6 +5,7 @@
 - 业务代码位于 `pilipili-video-service/src/main/java/com/pilipili/`，按 `config/`、`controller/`、`entity/`（含 `in/`、`out/`）、`exception/`、`mapper/`、`repository/`、`service/`、`service/impl/`、`utils/` 分层。
 - 资源与配置在 `pilipili-video-service/src/main/resources/`，数据库结构脚本在 `db/schema.sql`。
 - 测试代码在 `pilipili-video-service/src/test/java/com/pilipili/`。
+- 前端代码在 `D:\workspace\pilipili-video`。
 
 ## 构建、测试与本地运行
 ```bash

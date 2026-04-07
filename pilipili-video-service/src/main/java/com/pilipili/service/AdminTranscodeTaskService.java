@@ -342,35 +342,34 @@ public class AdminTranscodeTaskService {
             }
         }
 
-        String streamOutput = runCommand(Arrays.asList(
+        String videoCodec = probeFirstStreamCodec(sourcePath, "v:0");
+        String audioCodec = probeFirstStreamCodec(sourcePath, "a:0");
+        return new MediaProbeResult(durationSeconds, videoCodec, audioCodec);
+    }
+
+    private String probeFirstStreamCodec(Path sourcePath, String streamSelector) {
+        String output = runCommand(Arrays.asList(
                 resolveFfprobeExecutable(),
                 "-v", "error",
-                "-show_entries", "stream=codec_type,codec_name",
-                "-of", "csv=p=0",
+                "-select_streams", streamSelector,
+                "-show_entries", "stream=codec_name",
+                "-of", "default=noprint_wrappers=1:nokey=1",
                 sourcePath.toString()
-        ), "probe codec");
-        String videoCodec = "";
-        String audioCodec = "";
-        if (streamOutput != null && !streamOutput.trim().isEmpty()) {
-            String[] lines = streamOutput.split("\\R");
-            for (String line : lines) {
-                if (line == null || line.trim().isEmpty()) {
-                    continue;
-                }
-                String[] parts = line.trim().split(",");
-                if (parts.length < 2) {
-                    continue;
-                }
-                String codecType = parts[0].trim().toLowerCase(Locale.ROOT);
-                String codecName = parts[1].trim().toLowerCase(Locale.ROOT);
-                if ("video".equals(codecType) && videoCodec.isEmpty()) {
-                    videoCodec = codecName;
-                } else if ("audio".equals(codecType) && audioCodec.isEmpty()) {
-                    audioCodec = codecName;
-                }
+        ), "probe codec " + streamSelector);
+        if (output == null || output.trim().isEmpty()) {
+            return "";
+        }
+        String[] lines = output.split("\\R");
+        for (String line : lines) {
+            if (line == null) {
+                continue;
+            }
+            String normalized = line.trim().toLowerCase(Locale.ROOT);
+            if (!normalized.isEmpty()) {
+                return normalized;
             }
         }
-        return new MediaProbeResult(durationSeconds, videoCodec, audioCodec);
+        return "";
     }
 
     private void executeFfmpeg(TaskState task, TaskItemState item, Path sourcePath, Path outputPath, double durationSeconds) throws IOException {
@@ -456,8 +455,10 @@ public class AdminTranscodeTaskService {
         if (Files.exists(finalOutputPath)) {
             Files.delete(finalOutputPath);
         }
-        Files.delete(sourcePath);
         Files.move(actualOutputPath, finalOutputPath, StandardCopyOption.REPLACE_EXISTING);
+        if (!sourcePath.equals(finalOutputPath) && Files.exists(sourcePath)) {
+            Files.delete(sourcePath);
+        }
         return finalOutputPath;
     }
 
@@ -580,6 +581,7 @@ public class AdminTranscodeTaskService {
             task.totalProgress = calculateTotalProgress(task, 100D);
             task.updateTime = new Date();
         }
+        log.info("Transcode item success, taskId={}, source={}, output={}", task.taskId, displaySource(item), outputPath);
     }
 
     private void markItemSkipped(TaskState task, TaskItemState item, String message) {
@@ -592,6 +594,7 @@ public class AdminTranscodeTaskService {
             task.totalProgress = calculateTotalProgress(task, 100D);
             task.updateTime = new Date();
         }
+        log.info("Transcode item skipped, taskId={}, source={}, reason={}", task.taskId, displaySource(item), message);
     }
 
     private void markItemFailed(TaskState task, TaskItemState item, String message) {
@@ -604,6 +607,7 @@ public class AdminTranscodeTaskService {
             task.totalProgress = calculateTotalProgress(task, 100D);
             task.updateTime = new Date();
         }
+        log.warn("Transcode item failed, taskId={}, source={}, reason={}", task.taskId, displaySource(item), message);
     }
 
     private void finishTask(TaskState task) {
@@ -624,16 +628,19 @@ public class AdminTranscodeTaskService {
     }
 
     private String resolveFinalStatus(TaskState task) {
-        if (task.failedCount > 0) {
-            if (task.successCount > 0 || task.skippedCount > 0) {
-                return TASK_STATUS_PARTIAL_SUCCESS;
+        if (task.successCount > 0) {
+            if (task.failedCount == 0 && task.skippedCount == 0) {
+                return TASK_STATUS_SUCCESS;
             }
-            return TASK_STATUS_FAILED;
-        }
-        if (task.successCount > 0 && task.skippedCount > 0) {
             return TASK_STATUS_PARTIAL_SUCCESS;
         }
-        return TASK_STATUS_SUCCESS;
+        if (task.failedCount > 0 && task.skippedCount == 0) {
+            return TASK_STATUS_FAILED;
+        }
+        if (task.skippedCount > 0 || task.failedCount > 0) {
+            return TASK_STATUS_PARTIAL_SUCCESS;
+        }
+        return TASK_STATUS_FAILED;
     }
 
     private double calculateTotalProgress(TaskState task, double currentItemProgress) {
