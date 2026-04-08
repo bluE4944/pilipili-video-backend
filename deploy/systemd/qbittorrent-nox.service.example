@@ -1,0 +1,19 @@
+[Unit]
+Description=qBittorrent-nox Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=media
+Group=media
+UMask=002
+ExecStart=/usr/bin/qbittorrent-nox --webui-port=8080
+Restart=on-failure
+RestartSec=5
+
+# 如需固定配置目录，可追加：
+# Environment=QBT_PROFILE=/var/lib/qbittorrent
+
+[Install]
+WantedBy=multi-user.target

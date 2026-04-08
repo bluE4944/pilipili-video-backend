@@ -1,0 +1,20 @@
+# 阿里云服务器 visitor 侧 frpc 示例配置
+# 作用：把家庭下载机 qB WebUI 通过 STCP 映射到阿里云本机 127.0.0.1:18080
+
+serverAddr = "your-ecs-public-ip-or-domain"
+serverPort = 7000
+
+auth.method = "token"
+auth.token = "replace-with-your-frp-token"
+
+log.to = "./logs/frpc-visitor.log"
+log.level = "info"
+log.maxDays = 7
+
+[[visitors]]
+name = "pilipili-qb-visitor"
+type = "stcp"
+serverName = "pilipili-qb"
+secretKey = "replace-with-a-strong-shared-secret"
+bindAddr = "127.0.0.1"
+bindPort = 18080

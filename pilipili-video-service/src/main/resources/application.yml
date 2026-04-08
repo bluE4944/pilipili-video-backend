@@ -144,3 +144,11 @@ video:
       episode-hit-rate: 0.7
       # 单文件夹内标题一致性命中率
       title-match-rate: 0.7
+
+download:
+  qb:
+    base-url: http://127.0.0.1:18080
+    username:
+    password:
+    poll-interval-seconds: 5
+    default-category: pilipili

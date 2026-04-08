@@ -1,0 +1,23 @@
+# 家庭下载机 frpc 示例配置
+# 作用：把本机 qBittorrent WebUI 暴露给 STCP 服务端，不直接开放公网端口
+
+serverAddr = "your-ecs-public-ip-or-domain"
+serverPort = 7000
+
+auth.method = "token"
+auth.token = "replace-with-your-frp-token"
+
+log.to = "./logs/frpc-home.log"
+log.level = "info"
+log.maxDays = 7
+
+[[proxies]]
+name = "pilipili-qb"
+type = "stcp"
+secretKey = "replace-with-a-strong-shared-secret"
+localIP = "127.0.0.1"
+localPort = 8080
+
+# 如果 qB WebUI 监听在局域网地址，例如 192.168.1.20:8080，可改成：
+# localIP = "192.168.1.20"
+# localPort = 8080

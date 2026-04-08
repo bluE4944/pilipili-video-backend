@@ -1,0 +1,15 @@
+[Unit]
+Description=frpc Home Visitor Tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=media
+Group=media
+ExecStart=/opt/frp/frpc -c /etc/frp/frpc-home.toml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

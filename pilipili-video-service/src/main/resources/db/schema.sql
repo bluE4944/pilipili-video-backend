@@ -337,3 +337,40 @@ CREATE TABLE IF NOT EXISTS `t_video_episode` (
   KEY `idx_episode_number` (`episode_number`),
   KEY `idx_sort_order` (`sort_order`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='视频分集表';
+
+-- 下载任务表
+CREATE TABLE IF NOT EXISTS `t_download_task` (
+  `id` BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `task_tag` VARCHAR(100) NOT NULL COMMENT '任务标签',
+  `torrent_hash` VARCHAR(64) DEFAULT NULL COMMENT '种子哈希',
+  `source_type` VARCHAR(20) NOT NULL COMMENT '来源类型：magnet/torrent',
+  `source_name` VARCHAR(500) DEFAULT NULL COMMENT '来源名称',
+  `folder_config_id` BIGINT(20) NOT NULL COMMENT '本地文件夹配置ID',
+  `save_path` VARCHAR(500) NOT NULL COMMENT '保存目录',
+  `category` VARCHAR(100) DEFAULT NULL COMMENT 'qB 分类',
+  `qbt_state` VARCHAR(50) DEFAULT NULL COMMENT 'qB 原始状态',
+  `status` VARCHAR(30) NOT NULL COMMENT '任务状态',
+  `progress` DECIMAL(7,2) DEFAULT 0 COMMENT '进度百分比',
+  `downloaded_bytes` BIGINT(20) DEFAULT 0 COMMENT '已下载字节数',
+  `total_bytes` BIGINT(20) DEFAULT 0 COMMENT '总字节数',
+  `download_speed` BIGINT(20) DEFAULT 0 COMMENT '下载速度字节每秒',
+  `eta_seconds` BIGINT(20) DEFAULT 0 COMMENT '预计剩余秒数',
+  `error_message` VARCHAR(1000) DEFAULT NULL COMMENT '错误信息',
+  `auto_import_status` VARCHAR(30) DEFAULT 'pending' COMMENT '自动入库状态',
+  `auto_import_message` VARCHAR(1000) DEFAULT NULL COMMENT '自动入库消息',
+  `last_synced_at` DATETIME DEFAULT NULL COMMENT '最后同步时间',
+  `create_id` BIGINT(20) DEFAULT NULL COMMENT '创建者ID',
+  `create_name` VARCHAR(50) DEFAULT NULL COMMENT '创建者名',
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_id` BIGINT(20) DEFAULT NULL COMMENT '更新者ID',
+  `update_name` VARCHAR(50) DEFAULT NULL COMMENT '更新者名',
+  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `logic_del` INT(1) DEFAULT 0 COMMENT '逻辑删除：0-未删除，1-已删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_download_task_tag` (`task_tag`),
+  KEY `idx_download_torrent_hash` (`torrent_hash`),
+  KEY `idx_download_folder_config_id` (`folder_config_id`),
+  KEY `idx_download_status` (`status`),
+  KEY `idx_download_auto_import_status` (`auto_import_status`),
+  KEY `idx_download_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='下载任务表';

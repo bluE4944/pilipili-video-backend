@@ -1,0 +1,19 @@
+﻿# 阿里云服务器 frps 示例配置
+
+bindPort = 7000
+
+auth.method = "token"
+auth.token = "replace-with-your-frp-token"
+
+# 可选：控制台，仅建议绑定本机后自行做反代鉴权
+webServer.addr = "127.0.0.1"
+webServer.port = 7500
+webServer.user = "admin"
+webServer.password = "change-this-password"
+
+log.to = "./logs/frps.log"
+log.level = "info"
+log.maxDays = 7
+
+# 如需限制客户端鉴权，可改为 oidc 等方式。
+# 当前下载中心方案中，visitor 与 home 侧 STCP 还需要共享同一个 secretKey。
