@@ -56,8 +56,8 @@ http://127.0.0.1:8080
 
 Arch/Manjaro 的 `qbittorrent-nox` 官方包自带 `qbittorrent-nox.service` 和 `qbittorrent-nox@.service`。如果系统自带服务已经满足你的用户、端口和目录要求，可以直接启用，不必再复制自定义服务文件。
 
-- [deploy/systemd/qbittorrent-nox.service.example](/d:/workspace/pilipili-video-backend/deploy/systemd/qbittorrent-nox.service.example)
-- [deploy/systemd/frpc-home.service.example](/d:/workspace/pilipili-video-backend/deploy/systemd/frpc-home.service.example)
+- [deploy/systemd/qbittorrent-nox.service.example](https://github.com/bluE4944/pilipili-video-backend/blob/dev/deploy/systemd/qbittorrent-nox.service.example)
+- [deploy/systemd/frpc-home.service.example](https://github.com/bluE4944/pilipili-video-backend/blob/dev/deploy/systemd/frpc-home.service.example)
 
 按需修改：
 
@@ -65,3 +65,4 @@ Arch/Manjaro 的 `qbittorrent-nox` 官方包自带 `qbittorrent-nox.service` 和
 - `Group`
 - `ExecStart`
 - 下载目录权限
+

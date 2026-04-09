@@ -6,7 +6,7 @@
 
 如果需要让另一个 AI 代理直接按步骤执行安装和部署，优先阅读：
 
-- [docs/ai-agent-deployment-runbook.md](/d:/workspace/pilipili-video-backend/docs/ai-agent-deployment-runbook.md)
+- [docs/ai-agent-deployment-runbook.md](https://github.com/bluE4944/pilipili-video-backend/blob/dev/docs/ai-agent-deployment-runbook.md)
 
 核心原则：
 
@@ -122,7 +122,7 @@ sudo pacman -S qbittorrent-nox
 
 ### 5.4 部署家庭下载机 frpc
 
-把示例文件 [deploy/frp/frpc-home.toml.example](/d:/workspace/pilipili-video-backend/deploy/frp/frpc-home.toml.example) 复制为实际配置，例如 `frpc.toml`，按你的实际地址修改：
+把示例文件 [deploy/frp/frpc-home.toml.example](https://github.com/bluE4944/pilipili-video-backend/blob/dev/deploy/frp/frpc-home.toml.example) 复制为实际配置，例如 `frpc.toml`，按你的实际地址修改：
 
 - `serverAddr`
 - `serverPort`
@@ -147,8 +147,8 @@ Manjaro 手动启动示例：
 
 已提供样例：
 
-- [deploy/systemd/qbittorrent-nox.service.example](/d:/workspace/pilipili-video-backend/deploy/systemd/qbittorrent-nox.service.example)
-- [deploy/systemd/frpc-home.service.example](/d:/workspace/pilipili-video-backend/deploy/systemd/frpc-home.service.example)
+- [deploy/systemd/qbittorrent-nox.service.example](https://github.com/bluE4944/pilipili-video-backend/blob/dev/deploy/systemd/qbittorrent-nox.service.example)
+- [deploy/systemd/frpc-home.service.example](https://github.com/bluE4944/pilipili-video-backend/blob/dev/deploy/systemd/frpc-home.service.example)
 
 典型流程：
 
@@ -171,7 +171,7 @@ systemctl status frpc-home.service
 
 ### 6.1 安装 frps
 
-使用示例文件 [deploy/frp/frps.toml.example](/d:/workspace/pilipili-video-backend/deploy/frp/frps.toml.example)。
+使用示例文件 [deploy/frp/frps.toml.example](https://github.com/bluE4944/pilipili-video-backend/blob/dev/deploy/frp/frps.toml.example)。
 
 建议：
 
@@ -187,7 +187,7 @@ Linux 启动示例：
 
 ### 6.2 安装 frpc(visitor)
 
-使用示例文件 [deploy/frp/frpc-visitor.toml.example](/d:/workspace/pilipili-video-backend/deploy/frp/frpc-visitor.toml.example)。
+使用示例文件 [deploy/frp/frpc-visitor.toml.example](https://github.com/bluE4944/pilipili-video-backend/blob/dev/deploy/frp/frpc-visitor.toml.example)。
 
 关键点：
 
@@ -230,13 +230,13 @@ download:
 
 已提供：
 
-- [docs/remote-download-deployment.md](/d:/workspace/pilipili-video-backend/docs/remote-download-deployment.md)
-- [deploy/frp/frps.toml.example](/d:/workspace/pilipili-video-backend/deploy/frp/frps.toml.example)
-- [deploy/frp/frpc-visitor.toml.example](/d:/workspace/pilipili-video-backend/deploy/frp/frpc-visitor.toml.example)
-- [deploy/frp/frpc-home.toml.example](/d:/workspace/pilipili-video-backend/deploy/frp/frpc-home.toml.example)
-- [deploy/qbittorrent/README.md](/d:/workspace/pilipili-video-backend/deploy/qbittorrent/README.md)
-- [deploy/systemd/qbittorrent-nox.service.example](/d:/workspace/pilipili-video-backend/deploy/systemd/qbittorrent-nox.service.example)
-- [deploy/systemd/frpc-home.service.example](/d:/workspace/pilipili-video-backend/deploy/systemd/frpc-home.service.example)
+- [docs/remote-download-deployment.md](https://github.com/bluE4944/pilipili-video-backend/blob/dev/docs/remote-download-deployment.md)
+- [deploy/frp/frps.toml.example](https://github.com/bluE4944/pilipili-video-backend/blob/dev/deploy/frp/frps.toml.example)
+- [deploy/frp/frpc-visitor.toml.example](https://github.com/bluE4944/pilipili-video-backend/blob/dev/deploy/frp/frpc-visitor.toml.example)
+- [deploy/frp/frpc-home.toml.example](https://github.com/bluE4944/pilipili-video-backend/blob/dev/deploy/frp/frpc-home.toml.example)
+- [deploy/qbittorrent/README.md](https://github.com/bluE4944/pilipili-video-backend/blob/dev/deploy/qbittorrent/README.md)
+- [deploy/systemd/qbittorrent-nox.service.example](https://github.com/bluE4944/pilipili-video-backend/blob/dev/deploy/systemd/qbittorrent-nox.service.example)
+- [deploy/systemd/frpc-home.service.example](https://github.com/bluE4944/pilipili-video-backend/blob/dev/deploy/systemd/frpc-home.service.example)
 
 ## 8. 推荐部署顺序
 
@@ -395,3 +395,4 @@ DELETE /api/admin/download/tasks/{taskId}?deleteFiles=true
 4. 能上传 `.torrent` 文件任务
 5. 能暂停、继续、删除任务
 6. 下载完成后能自动扫描入库，失败后可手动重试
+
